@@ -56,7 +56,6 @@ export default function BillCard(props: BillCardProps) {
   const navigation = useNavigation<NavigationProp>();
 
   const goToBillDetails = () => {
-    console.log(props)
     navigation.navigate('BillDetails', { session, number });
   };
 

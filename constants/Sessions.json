@@ -1,0 +1,207 @@
+{
+    "parliaments": [
+      {
+        "parliament": 44,
+        "sessions": [
+          {
+            "session": 1,
+            "start_date": "2021-11-22",
+            "end_date": "2025-01-06",
+            "duration_days": 1141,
+            "senate_sittings": 249,
+            "house_sittings": 392
+          }
+        ]
+      },
+      {
+        "parliament": 43,
+        "sessions": [
+          {
+            "session": 2,
+            "start_date": "2020-09-23",
+            "end_date": "2021-08-15",
+            "duration_days": 326,
+            "senate_sittings": 56,
+            "house_sittings": 124
+          },
+          {
+            "session": 1,
+            "start_date": "2019-12-05",
+            "end_date": "2020-08-18",
+            "duration_days": 257,
+            "senate_sittings": 28,
+            "house_sittings": 45
+          }
+        ]
+      },
+      {
+        "parliament": 42,
+        "sessions": [
+          {
+            "session": 1,
+            "start_date": "2015-12-03",
+            "end_date": "2019-09-11",
+            "duration_days": 1378,
+            "senate_sittings": 308,
+            "house_sittings": 442
+          }
+        ]
+      },
+      {
+        "parliament": 41,
+        "sessions": [
+          {
+            "session": 2,
+            "start_date": "2013-10-16",
+            "end_date": "2015-08-02",
+            "duration_days": 655,
+            "senate_sittings": 162,
+            "house_sittings": 235
+          },
+          {
+            "session": 1,
+            "start_date": "2011-06-02",
+            "end_date": "2013-09-13",
+            "duration_days": 834,
+            "senate_sittings": 181,
+            "house_sittings": 272
+          }
+        ]
+      },
+      {
+        "parliament": 40,
+        "sessions": [
+          {
+            "session": 3,
+            "start_date": "2010-03-03",
+            "end_date": "2011-03-26",
+            "duration_days": 388,
+            "senate_sittings": 99,
+            "house_sittings": 149
+          },
+          {
+            "session": 2,
+            "start_date": "2009-01-26",
+            "end_date": "2009-12-30",
+            "duration_days": 338,
+            "senate_sittings": 83,
+            "house_sittings": 128
+          },
+          {
+            "session": 1,
+            "start_date": "2008-11-18",
+            "end_date": "2008-12-04",
+            "duration_days": 16,
+            "senate_sittings": 8,
+            "house_sittings": 13
+          }
+        ]
+      },
+      {
+        "parliament": 39,
+        "sessions": [
+          {
+            "session": 2,
+            "start_date": "2007-10-16",
+            "end_date": "2008-09-07",
+            "duration_days": 327,
+            "senate_sittings": 73,
+            "house_sittings": 117
+          },
+          {
+            "session": 1,
+            "start_date": "2006-04-03",
+            "end_date": "2007-09-14",
+            "duration_days": 529,
+            "senate_sittings": 113,
+            "house_sittings": 175
+          }
+        ]
+      },
+      {
+        "parliament": 38,
+        "sessions": [
+          {
+            "session": 1,
+            "start_date": "2004-10-04",
+            "end_date": "2005-11-29",
+            "duration_days": 421,
+            "senate_sittings": 100,
+            "house_sittings": 159
+          }
+        ]
+      },
+      {
+        "parliament": 37,
+        "sessions": [
+          {
+            "session": 3,
+            "start_date": "2004-02-02",
+            "end_date": "2004-05-23",
+            "duration_days": 111,
+            "senate_sittings": 42,
+            "house_sittings": 55
+          },
+          {
+            "session": 2,
+            "start_date": "2002-09-30",
+            "end_date": "2003-11-12",
+            "duration_days": 408,
+            "senate_sittings": 97,
+            "house_sittings": 153
+          },
+          {
+            "session": 1,
+            "start_date": "2001-01-29",
+            "end_date": "2002-09-16",
+            "duration_days": 595,
+            "senate_sittings": 124,
+            "house_sittings": 211
+          }
+        ]
+      },
+      {
+        "parliament": 36,
+        "sessions": [
+          {
+            "session": 2,
+            "start_date": "1999-10-12",
+            "end_date": "2000-10-22",
+            "duration_days": 376,
+            "senate_sittings": 84,
+            "house_sittings": 133
+          },
+          {
+            "session": 1,
+            "start_date": "1997-09-22",
+            "end_date": "1999-09-18",
+            "duration_days": 726,
+            "senate_sittings": 158,
+            "house_sittings": 243
+          }
+        ]
+      },
+      {
+        "parliament": 35,
+        "sessions": [
+          {
+            "session": 2,
+            "start_date": "1996-02-27",
+            "end_date": "1997-04-27",
+            "duration_days": 425,
+            "senate_sittings": 96,
+            "house_sittings": 164
+          },
+          {
+            "session": 1,
+            "start_date": "1994-01-17",
+            "end_date": "1996-02-02",
+            "duration_days": 746,
+            "senate_sittings": 133,
+            "house_sittings": 278
+          }
+        ]
+      }
+    ]
+  }
+  

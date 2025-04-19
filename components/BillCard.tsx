@@ -10,6 +10,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'BillDetails'>;
 
@@ -91,10 +92,34 @@ export default function BillCard(props: BillCardProps) {
 
   const hasRoyalAssent = !!ReceivedRoyalAssentDateTime;
 
+  const getLastInteractionDate = () => {
+    const dates = [
+      ReceivedRoyalAssentDateTime,
+      PassedHouseThirdReadingDateTime,
+      PassedHouseSecondReadingDateTime,
+      PassedHouseFirstReadingDateTime,
+      PassedSenateThirdReadingDateTime,
+      PassedSenateSecondReadingDateTime,
+      PassedSenateFirstReadingDateTime,
+    ].filter(date => date) as string[];
+
+    if (dates.length === 0) return 'N/A';
+
+    const lastDate = new Date(Math.max(...dates.map(d => new Date(d).getTime())));
+    return lastDate.toLocaleDateString();
+  };
+
   return (
     <Pressable onPress={goToBillDetails} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-      <Text style={styles.billNumber}>{BillNumberFormatted}</Text>
-      <Text style={styles.session}>{ParlSessionEn}</Text>
+      <View style={styles.header}>
+        <Text style={styles.billNumber}>{BillNumberFormatted}</Text>
+        {hasRoyalAssent && (
+          <View style={styles.royalAssentBadge}>
+            <MaterialIcons name="stars" size={16} color="#ffc107" />
+            <Text style={styles.royalAssentText}>RA</Text>
+          </View>
+        )}
+      </View>
       <Text style={styles.title}>{LongTitleEn}</Text>
 
       <Text style={styles.label}>Current status</Text>
@@ -109,17 +134,17 @@ export default function BillCard(props: BillCardProps) {
       <Text style={styles.label}>Type</Text>
       <Text style={styles.body}>{BillTypeEn}</Text>
 
-      {/* Progress bar */}
       <View style={styles.progressContainer}>
         <Text style={styles.progressTitle}>Senate</Text>
         {renderProgressBar(senateStages, '#b71c1c')}
 
         <Text style={styles.progressTitle}>House of Commons</Text>
         {renderProgressBar(houseStages, '#2e7d32')}
-
-        <Text style={styles.progressTitle}>Royal Assent</Text>
-        {renderRoyalAssent(hasRoyalAssent)}
       </View>
+
+      <Text style={styles.lastInteractionDate}>
+        Last updated: {getLastInteractionDate()}
+      </Text>
     </Pressable>
   );
 }
@@ -143,11 +168,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 2,
-  },
-  session: {
-    fontSize: 12,
-    color: '#555',
     marginBottom: 8,
   },
   title: {
@@ -204,5 +224,31 @@ const styles = StyleSheet.create({
   },
   royalAssentPending: {
     backgroundColor: '#ddd',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  royalAssentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  royalAssentText: {
+    color: '#ffc107',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  lastInteractionDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 16,
+    textAlign: 'right',
   },
 });

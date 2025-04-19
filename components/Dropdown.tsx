@@ -6,9 +6,10 @@ interface DropdownProps {
   options: string[];
   selectedValue: string;
   onSelect: (value: string) => void;
+  textColor?: string;
 }
 
-const Dropdown: React.FC<DropdownProps> = ({ label, options, selectedValue, onSelect }) => {
+const Dropdown: React.FC<DropdownProps> = ({ label, options, selectedValue, onSelect, textColor = '#333' }) => {
   const [modalVisible, setModalVisible] = useState(false);
 
   const screenHeight = Dimensions.get('window').height;
@@ -27,7 +28,7 @@ const Dropdown: React.FC<DropdownProps> = ({ label, options, selectedValue, onSe
           style={styles.dropdownButton}
           onPress={() => setModalVisible(true)}
         >
-          <Text style={styles.dropdownText}>{selectedValue}</Text>
+          <Text style={[styles.dropdownText, { color: textColor }]}>{selectedValue}</Text>
         </TouchableOpacity>
       </View>
       <Modal

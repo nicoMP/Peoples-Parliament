@@ -38,7 +38,6 @@ export default function BillCard(props: BillCardProps) {
   const {
     BillNumberFormatted,
     LongTitleEn,
-    ParlSessionEn,
     SponsorEn,
     BillTypeEn,
     CurrentStatusEn,
@@ -164,11 +163,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2efeb',
     transform: [{ scale: 0.98 }],
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    height: 28,
+  },
   billNumber: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
   },
   title: {
     fontSize: 16,
@@ -224,12 +229,6 @@ const styles = StyleSheet.create({
   },
   royalAssentPending: {
     backgroundColor: '#ddd',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
   },
   royalAssentBadge: {
     flexDirection: 'row',

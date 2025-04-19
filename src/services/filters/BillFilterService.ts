@@ -3,6 +3,16 @@ import { ApiBill } from '@src/types/bill';
 export type SearchType = 'default' | 'sponsor' | 'status' | 'type';
 export type RoyalAssentFilter = 'in_progress' | 'none' | 'both';
 export type SortBy = 'date' | 'status' | 'number';
+export type DateField = keyof Pick<ApiBill, 
+  'LatestActivityDateTime' | 
+  'PassedHouseFirstReadingDateTime' | 
+  'PassedHouseSecondReadingDateTime' | 
+  'PassedHouseThirdReadingDateTime' | 
+  'PassedSenateFirstReadingDateTime' | 
+  'PassedSenateSecondReadingDateTime' | 
+  'PassedSenateThirdReadingDateTime' | 
+  'ReceivedRoyalAssentDateTime'
+>;
 
 export interface BillFilterOptions {
   searchText?: string;
@@ -10,6 +20,9 @@ export interface BillFilterOptions {
   royalAssentFilter?: RoyalAssentFilter;
   lastInteractionDays?: number;
   sortBy?: SortBy;
+  startDate?: Date;
+  endDate?: Date;
+  dateField?: DateField;
 }
 
 export class BillFilterService {
@@ -45,7 +58,7 @@ export class BillFilterService {
   public filterBills(bills: ApiBill[], options: BillFilterOptions): ApiBill[] {
     return bills
       .filter(bill => this.applyFilters(bill, options))
-      .sort((a, b) => this.sortBills(a, b, options.sortBy));
+      .sort((a, b) => this.sortBills(a, b, options.sortBy, options.dateField));
   }
 
   private applyFilters(bill: ApiBill, options: BillFilterOptions): boolean {
@@ -79,18 +92,35 @@ export class BillFilterService {
     if (options.lastInteractionDays !== undefined) {
       const lastInteractionDate = this.getLastInteractionDate(bill);
       const daysSinceInteraction = this.getDaysSince(lastInteractionDate);
-      if (daysSinceInteraction > options.lastInteractionDays) return false;
+      if (daysSinceInteraction > options.lastInteractionDays) {
+        return false;
+      }
+    }
+
+    if (options.startDate || options.endDate) {
+      const dateField = options.dateField || 'LatestActivityDateTime';
+      const date = new Date(bill[dateField] || 0);
+      const dateTime = date.getTime();
+
+      if (options.startDate && dateTime < options.startDate.getTime()) {
+        return false;
+      }
+
+      if (options.endDate && dateTime > options.endDate.getTime()) {
+        return false;
+      }
     }
 
     return true;
   }
 
-  private sortBills(a: ApiBill, b: ApiBill, sortBy?: SortBy): number {
+  private sortBills(a: ApiBill, b: ApiBill, sortBy?: SortBy, dateField?: DateField): number {
     switch (sortBy) {
       case 'date':
+        const field = dateField || 'LatestActivityDateTime';
         return this.compareDates(
-          this.getLastInteractionDate(b),
-          this.getLastInteractionDate(a)
+          new Date(b[field] || 0),
+          new Date(a[field] || 0)
         );
       case 'status':
         return a.CurrentStatusEn.localeCompare(b.CurrentStatusEn);
@@ -112,9 +142,12 @@ export class BillFilterService {
       bill.PassedSenateFirstReadingDateTime,
     ].filter(date => date) as string[];
 
-    return dates.length > 0 
-      ? new Date(Math.max(...dates.map(d => new Date(d).getTime()))) 
-      : new Date(0);
+    if (dates.length === 0) {
+      return new Date(0); // Return a very old date if no interaction dates exist
+    }
+
+    const maxDate = new Date(Math.max(...dates.map(d => new Date(d).getTime())));
+    return maxDate;
   }
 
   private getDaysSince(date: Date): number {

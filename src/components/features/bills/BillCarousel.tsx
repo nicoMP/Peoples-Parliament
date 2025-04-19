@@ -8,13 +8,19 @@ import {
   ActivityIndicator,
   TextInput,
   Text,
+  TouchableOpacity,
+  Modal,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import BillNavigationBar from './BillNavigationBar';
 import { ApiBill } from '@src/types/bill';
 import { MaterialIcons } from '@expo/vector-icons';
 import Dropdown from '@components/Dropdown';
-import { BillFilterService, SearchType, RoyalAssentFilter, SortBy } from '@services/filters/BillFilterService';
+import { BillFilterService, SearchType, RoyalAssentFilter, SortBy, DateField } from '@services/filters/BillFilterService';
 import { SEARCH_TYPES, DATE_FILTERS } from '@services/filters/FilterConstants';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import KeyboardAvoidingContainer from '../common/KeyboardAvoidingContainer';
 
 const { width } = Dimensions.get('window');
 const PAGE_SIZE = 10;
@@ -29,7 +35,13 @@ export default function BillCarousel() {
   const [searchType, setSearchType] = useState<SearchType>('default');
   const [royalAssentFilter, setRoyalAssentFilter] = useState<RoyalAssentFilter>('both');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [pickerMode, setPickerMode] = useState<'start' | 'end'>('start');
   const [sortBy, setSortBy] = useState<SortBy>('date');
+  const [dateField, setDateField] = useState<DateField>('LatestActivityDateTime');
+  const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
   const handleSearchTextChange = useCallback((text: string) => {
@@ -38,21 +50,67 @@ export default function BillCarousel() {
       clearTimeout(searchTimeoutRef.current);
     }
     searchTimeoutRef.current = setTimeout(() => {
-      // Force a re-render of the filtered bills
       setBills(prev => [...prev]);
     }, 300);
   }, []);
 
+  const handleDateRangeChange = useCallback((newStartDate?: Date, newEndDate?: Date) => {
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    setDateFilter('custom');
+  }, []);
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (selectedDate) {
+      if (pickerMode === 'start') {
+        setStartDate(selectedDate);
+        setPickerMode('end');
+      } else {
+        setEndDate(selectedDate);
+        setShowDatePicker(false);
+        setDateFilter('custom');
+      }
+    } else {
+      setShowDatePicker(false);
+    }
+  };
+
+  const formatDateRange = () => {
+    if (!startDate && !endDate) return 'All time';
+    if (!startDate) return `Until ${endDate?.toLocaleDateString()}`;
+    if (!endDate) return `From ${startDate?.toLocaleDateString()}`;
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
+
+  const handleDateFilterChange = useCallback((filter: string) => {
+    setDateFilter(filter);
+  }, []);
+
+  const handleDateFieldChange = useCallback((field: string) => {
+    setDateField(field as DateField);
+  }, []);
+
+  const handleDateSortChange = useCallback((order: 'asc' | 'desc') => {
+    setDateSortOrder(order);
+  }, []);
+
   const filteredBills = useMemo(() => {
     const filterService = BillFilterService.getInstance();
+    const lastInteractionDays = dateFilter === 'all' ? undefined : 
+                              dateFilter === 'custom' ? undefined : 
+                              parseInt(dateFilter);
+    
     return filterService.filterBills(bills, {
       searchText: searchText.trim(),
       searchType,
       royalAssentFilter,
-      lastInteractionDays: dateFilter === 'all' ? undefined : parseInt(dateFilter),
+      lastInteractionDays,
+      startDate,
+      endDate,
       sortBy,
+      dateField,
     });
-  }, [bills, searchText, searchType, royalAssentFilter, dateFilter, sortBy]);
+  }, [bills, searchText, searchType, royalAssentFilter, dateFilter, startDate, endDate, sortBy, dateField]);
 
   const renderItem = useCallback(({ item }: { item: ApiBill }) => (
     <View style={styles.cardContainer}>
@@ -110,35 +168,15 @@ export default function BillCarousel() {
         onSearchTypeChange={setSearchType}
         royalAssentFilter={royalAssentFilter}
         onRoyalAssentFilterChange={setRoyalAssentFilter}
+        onDateRangeChange={handleDateRangeChange}
+        searchText={searchText}
+        onSearchTextChange={handleSearchTextChange}
+        dateFilter={dateFilter}
+        onDateFilterChange={handleDateFilterChange}
+        onDateFieldChange={handleDateFieldChange}
+        onDateSortChange={handleDateSortChange}
       />
       <View style={styles.listWrapper}>
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <MaterialIcons name="search" size={20} color="#666" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search bills..."
-              value={searchText}
-              onChangeText={handleSearchTextChange}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="default"
-              returnKeyType="search"
-            />
-          </View>
-          <View style={styles.dateFilterContainer}>
-            <Dropdown
-              label=""
-              options={DATE_FILTERS.map(filter => filter.label)}
-              selectedValue={DATE_FILTERS.find(f => f.value === dateFilter)?.label || 'All time'}
-              onSelect={(label) => {
-                const filter = DATE_FILTERS.find(f => f.label === label)?.value || 'all';
-                setDateFilter(filter);
-              }}
-              textColor="#b22234"
-            />
-          </View>
-        </View>
         <FlatList
           data={filteredBills}
           renderItem={renderItem}
@@ -150,6 +188,8 @@ export default function BillCarousel() {
           windowSize={3}
           removeClippedSubviews={true}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => Keyboard.dismiss()}
+          onTouchStart={() => Keyboard.dismiss()}
           contentContainerStyle={styles.listContent}
         />
       </View>
@@ -164,38 +204,6 @@ const styles = StyleSheet.create({
   },
   listWrapper: {
     flex: 1,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
-    paddingVertical: 4,
-  },
-  dateFilterContainer: {
-    minWidth: 120,
   },
   listContent: {
     paddingTop: 12,

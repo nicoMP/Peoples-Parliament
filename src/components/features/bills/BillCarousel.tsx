@@ -13,7 +13,7 @@ import {
   Keyboard,
   Platform,
 } from 'react-native';
-import BillNavigationBar from './BillNavigationBar';
+import BillFilterBar from './BillFilterBar';
 import { ApiBill } from '@src/types/bill';
 import { MaterialIcons } from '@expo/vector-icons';
 import Dropdown from '@components/Dropdown';
@@ -163,7 +163,7 @@ export default function BillCarousel() {
 
   return (
     <View style={styles.container}>
-      <BillNavigationBar
+      <BillFilterBar
         parliament={parliament}
         session={session}
         onParliamentChange={setParliament}

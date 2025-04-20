@@ -12,7 +12,7 @@ import {
 import { BillPdfService, SavedBill } from '@src/services/BillPdfService';
 import SavedBillCard from '@src/components/SavedBillCard';
 import { useFocusEffect } from '@react-navigation/native';
-import BillNavigationBar from '@src/components/features/bills/BillNavigationBar';
+import BillFilterBar from '@src/components/features/bills/BillFilterBar';
 import { BillFilterService, StatusFilter, DateField, SortBy } from '@src/services/filters/BillFilterService';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -185,7 +185,7 @@ export default function MyBillsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: StatusBar.currentHeight || 0 }]}>
-      <BillNavigationBar 
+      <BillFilterBar 
         parliament="44"  // Default values, not used for this screen
         session="1"
         onParliamentChange={() => {}}

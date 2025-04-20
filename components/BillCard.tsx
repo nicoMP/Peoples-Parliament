@@ -304,18 +304,18 @@ export default function BillCard(props: BillCardProps) {
         : `file://${pdfPath}`;
       
       // Extract version and chamber from the filename if available
-      let versionInfo = '';
+      let stage = '';
       if (pdfPath.includes('_v')) {
         const parts = pdfPath.split('_v')[1].split('.pdf')[0].split('_');
         if (parts.length >= 2) {
-          versionInfo = ` (v${parts[0]}, ${parts[1]})`;
+          stage = parts[1]; // Assign the stage directly
         }
       }
       
       // Navigate to PDF viewer with all needed parameters
       navigation.navigate('PDFViewer', {
         uri: pdfUri,
-        title: `${BillNumberFormatted}${versionInfo} - ${LongTitleEn}`,
+        title: `${BillNumberFormatted}`,
         parliament: parliament,
         session: session,
         billNumber: BillNumberFormatted

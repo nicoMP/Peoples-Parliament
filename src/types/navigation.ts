@@ -9,10 +9,15 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<TabParamList> & ScreenOptions;
 };
 
+export type PoliticiansStackParamList = {
+  PoliticiansList: undefined;
+  PoliticianDetails: { id: string };
+};
+
 export type TabParamList = {
   BillsStack: ScreenOptions;
   MyBillsStack: NavigatorScreenParams<MyBillsStackParamList> & ScreenOptions;
-  Profile: ScreenOptions;
+  PoliticiansStack: NavigatorScreenParams<PoliticiansStackParamList> & ScreenOptions;
 };
 
 export type BillsStackParamList = {

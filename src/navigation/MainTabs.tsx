@@ -4,17 +4,11 @@ import { TabParamList } from '@src/types/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
 import BillsStack from './stacks/BillsStack';
 import MyBillsStack from './stacks/MyBillsStack';
-import { useRouter } from 'expo-router';
-import { View } from 'react-native';
+import PoliticiansStack from './stacks/PoliticiansStack';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Dummy component for the Profile tab since we're using router.push
-const DummyScreen = () => <View />;
-
 export default function MainTabs() {
-  const router = useRouter();
-  
   return (
     <Tab.Navigator
       screenOptions={{
@@ -43,20 +37,12 @@ export default function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Profile"
-        component={DummyScreen}
-        listeners={{
-          tabPress: (e) => {
-            // Prevent default behavior
-            e.preventDefault();
-            // Navigate to the profile screen
-            router.push('/profile');
-          },
-        }}
+        name="PoliticiansStack"
+        component={PoliticiansStack}
         options={{
-          title: 'Profile',
+          title: 'Politicians',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="person" size={size} color={color} />
+            <MaterialIcons name="people" size={size} color={color} />
           ),
         }}
       />

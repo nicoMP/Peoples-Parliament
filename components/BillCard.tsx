@@ -522,7 +522,7 @@ export default function BillCard(props: BillCardProps) {
           
           {saved && !pdfMissing && (
             <Pressable 
-              onPress={handleViewPdf} 
+              // onPress={handleViewPdf} 
               style={styles.actionButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >

@@ -12,6 +12,7 @@ export interface Politician {
   gender?: string;
   image: string;
   cached_image?: string;  // Local cached image path
+  isWatching?: boolean;   // Added for tracking watch status
   current_party: {
     short_name: {
       en: string;
@@ -93,6 +94,7 @@ export interface PoliticianFilters {
   include?: 'former' | 'all' | undefined;
   limit?: number;
   offset?: number;
+  watched_only?: boolean;
 }
 
 export interface PoliticianResponse extends PaginatedResponse<Politician> {} 

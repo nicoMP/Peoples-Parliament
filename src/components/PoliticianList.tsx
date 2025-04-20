@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Politician } from '../types/parliament';
-import { View, Image, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, NativeScrollEvent, NativeSyntheticEvent, Linking, Alert, RefreshControl } from 'react-native';
+import { View, Image, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, NativeScrollEvent, NativeSyntheticEvent, Linking, Alert, RefreshControl, GestureResponderEvent } from 'react-native';
 import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import { getPartyColor, getPartyBackgroundColor } from '../utils/partyColors';
+import { getPartyColor } from '../utils/partyColors';
+import { WatchedPoliticiansService } from '../services/WatchedPoliticiansService';
 
 /**
  * Get image source for a politician, prioritizing cached images over remote ones.
@@ -27,10 +28,160 @@ interface PoliticianListProps {
   politicians: Politician[];
   loading: boolean;
   error: Error | null;
-  onLoadMore: () => Promise<void>;
+  onLoadMore?: () => Promise<void>;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
+  onToggleWatch?: (politician: Politician) => Promise<void>;
 }
+
+// Memoized politician card component to prevent unnecessary re-renders
+interface PoliticianCardProps {
+  politician: Politician;
+  onToggleWatch: (politician: Politician) => void;
+  onCardPress: (politician: Politician) => void;
+  onOpenLink: (url: string) => void;
+  onSendEmail: (email: string) => void;
+  onMakePhoneCall: (phoneNumber: string) => void;
+}
+
+const PoliticianCard = memo(({ 
+  politician, 
+  onToggleWatch, 
+  onCardPress,
+  onOpenLink,
+  onSendEmail,
+  onMakePhoneCall
+}: PoliticianCardProps) => {
+  if (!politician) return null;
+  
+  const imageSource = getPoliticianImageSource(politician);
+  const partyColor = getPartyColor(politician?.current_party?.short_name?.en);
+  
+  // Generate social media links
+  const twitterUrl = politician?.other_info?.twitter_id ? 
+    `https://twitter.com/intent/user?user_id=${politician.other_info.twitter_id[0] || politician.other_info.twitter_id}` : null;
+  
+  const wikipediaUrl = politician?.other_info?.wikipedia_id ?
+    `https://en.wikipedia.org/wiki/${politician.other_info.wikipedia_id[0] || politician.other_info.wikipedia_id}` : null;
+  
+  const facebookUrl = politician?.links?.find(link => link?.url?.includes('facebook'))?.url || null;
+  
+  const hasSocials = twitterUrl || wikipediaUrl || facebookUrl;
+
+  const handleToggleWatch = (e: GestureResponderEvent) => {
+    e.stopPropagation();
+    onToggleWatch(politician);
+  };
+  
+  return (
+    <TouchableOpacity 
+      key={politician.url} 
+      style={styles.card}
+      onPress={() => onCardPress(politician)}
+    >
+      <View style={[styles.partyColorBand, { backgroundColor: partyColor }]} />
+      
+      {/* Star toggle button */}
+      <TouchableOpacity 
+        style={styles.watchButton}
+        onPress={handleToggleWatch}
+      >
+        <FontAwesome 
+          name={politician.isWatching ? "star" : "star-o"} 
+          size={26} 
+          color="#FFD700"
+        />
+      </TouchableOpacity>
+      
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <View style={styles.imageContainer}>
+            {imageSource ? (
+              <Image 
+                source={imageSource}
+                style={styles.image}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.image, styles.placeholderImage]}>
+                <MaterialIcons name="person" size={40} color="#cccccc" />
+              </View>
+            )}
+          </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.name}>{politician.name || 'Unknown'}</Text>
+            <View style={styles.partyBadge}>
+              <Text style={[styles.partyText, { color: partyColor }]}>
+                {politician?.current_party?.short_name?.en || 'Unknown Party'}
+              </Text>
+            </View>
+            <Text style={styles.ridingText}>
+              {politician?.current_riding?.name?.en || 'Unknown Riding'}
+              {politician?.current_riding?.province ? `, ${politician.current_riding.province}` : ''}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.contactInfoRow}>
+          <View style={styles.contactSection}>
+            {politician?.email && (
+              <TouchableOpacity 
+                style={styles.contactRow}
+                onPress={() => onSendEmail(politician.email || '')}
+              >
+                <MaterialIcons name="email" size={16} color={partyColor} style={styles.contactIcon} />
+                <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">
+                  {politician.email}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {politician?.voice && (
+              <TouchableOpacity 
+                style={styles.contactRow}
+                onPress={() => onMakePhoneCall(politician.voice || '')}
+              >
+                <MaterialIcons name="phone" size={16} color={partyColor} style={styles.contactIcon} />
+                <Text style={styles.contactText}>{politician.voice}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {hasSocials && (
+            <View style={styles.socialLinks}>
+              {twitterUrl && (
+                <TouchableOpacity 
+                  style={[styles.socialButton, { borderColor: '#1DA1F2', backgroundColor: '#f5f8fa' }]}
+                  onPress={() => onOpenLink(twitterUrl)}
+                >
+                  <FontAwesome name="twitter" size={18} color="#1DA1F2" />
+                </TouchableOpacity>
+              )}
+              
+              {wikipediaUrl && (
+                <TouchableOpacity 
+                  style={[styles.socialButton, { borderColor: '#000000', backgroundColor: '#f8f8f8' }]}
+                  onPress={() => onOpenLink(wikipediaUrl)}
+                >
+                  <FontAwesome name="wikipedia-w" size={18} color="#000000" />
+                </TouchableOpacity>
+              )}
+              
+              {facebookUrl && (
+                <TouchableOpacity 
+                  style={[styles.socialButton, { borderColor: '#3b5998', backgroundColor: '#f7f7fb' }]}
+                  onPress={() => onOpenLink(facebookUrl)}
+                >
+                  <FontAwesome name="facebook" size={18} color="#3b5998" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 const PoliticianList: React.FC<PoliticianListProps> = ({
   politicians,
@@ -38,12 +189,65 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
   error,
   onLoadMore,
   refreshing,
-  onRefresh
+  onRefresh,
+  onToggleWatch
 }) => {
   const navigation = useNavigation<any>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [localPoliticians, setLocalPoliticians] = useState<Politician[]>(politicians);
+  
+  // Create a local reference to the service
+  const watchedService = WatchedPoliticiansService.getInstance();
+
+  // Log state for debugging
+  console.log(`PoliticianList: onToggleWatch prop is ${onToggleWatch ? 'provided' : 'NOT provided'}`);
+  console.log(`PoliticianList: has ${politicians.length} politicians and ${localPoliticians.length} local politicians`);
+  
+  // Update local state when politicians prop changes
+  useEffect(() => {
+    console.log(`PoliticianList: Received ${politicians.length} politicians from parent`);
+    // Politicians from parent should already be sorted by the usePoliticians hook
+    setLocalPoliticians(politicians);
+  }, [politicians]);
+
+  // Local toggle function - optimized
+  const handleLocalToggleWatch = useCallback(async (politician: Politician) => {
+    try {
+      const isCurrentlyWatched = politician.isWatching === true;
+      const newStatus = !isCurrentlyWatched;
+      
+      // Create an optimistic update
+      setLocalPoliticians(prev => 
+        prev.map(p => p.url === politician.url ? { ...p, isWatching: newStatus } : p)
+      );
+      
+      // Background database update
+      try {
+        if (newStatus) {
+          await watchedService.watchPolitician(politician);
+        } else {
+          await watchedService.unwatchPolitician(politician.url);
+        }
+        
+        // Call parent callback if provided (don't await)
+        if (onToggleWatch) {
+          onToggleWatch(politician).catch(error => {
+            console.error('Error in parent onToggleWatch:', error);
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to ${newStatus ? 'watch' : 'unwatch'} ${politician.name}:`, error);
+        // Revert UI on error
+        setLocalPoliticians(prev => 
+          prev.map(p => p.url === politician.url ? { ...p, isWatching: isCurrentlyWatched } : p)
+        );
+      }
+    } catch (error) {
+      console.error('Error in local toggle watch:', error);
+    }
+  }, [watchedService, onToggleWatch]);
 
   const navigateToPoliticianDetails = (politician: Politician) => {
     if (!politician?.url) return;
@@ -53,6 +257,8 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
 
   // Handler for scroll events to implement infinite scrolling
   const handleScroll = async (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!onLoadMore) return;
+    
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     
     // Check if user has scrolled to bottom (with a threshold of 50px)
@@ -106,6 +312,21 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
     });
   };
 
+  // Memoize rendering politicians to prevent unnecessary re-renders
+  const renderedPoliticians = useMemo(() => {
+    return localPoliticians.map(politician => (
+      <PoliticianCard
+        key={politician.url}
+        politician={politician}
+        onToggleWatch={handleLocalToggleWatch}
+        onCardPress={navigateToPoliticianDetails}
+        onOpenLink={openLink}
+        onSendEmail={sendEmail}
+        onMakePhoneCall={makePhoneCall}
+      />
+    ));
+  }, [localPoliticians, handleLocalToggleWatch, navigateToPoliticianDetails, openLink, sendEmail, makePhoneCall]);
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -127,7 +348,7 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
         style={styles.scrollContent}
         ref={scrollViewRef}
         onScroll={handleScroll}
-        scrollEventThrottle={400} // Don't trigger too often
+        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -137,129 +358,16 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
           />
         }
       >
-        {loading && politicians.length === 0 ? (
+        {loading && localPoliticians.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#b22234" />
             <Text style={styles.loadingText}>Loading politicians...</Text>
           </View>
         ) : (
           <View style={styles.content}>
-            {politicians.map((politician) => {
-              if (!politician) return null;
-              
-              const imageSource = getPoliticianImageSource(politician);
-              const partyColor = getPartyColor(politician?.current_party?.short_name?.en);
-              
-              // Generate social media links
-              const twitterUrl = politician?.other_info?.twitter_id ? 
-                `https://twitter.com/intent/user?user_id=${politician.other_info.twitter_id[0] || politician.other_info.twitter_id}` : null;
-              
-              const wikipediaUrl = politician?.other_info?.wikipedia_id ?
-                `https://en.wikipedia.org/wiki/${politician.other_info.wikipedia_id[0] || politician.other_info.wikipedia_id}` : null;
-              
-              const facebookUrl = politician?.links?.find(link => link?.url?.includes('facebook'))?.url || null;
-              
-              const hasSocials = twitterUrl || wikipediaUrl || facebookUrl;
-              
-              return (
-                <TouchableOpacity 
-                  key={politician.url} 
-                  style={styles.card}
-                  onPress={() => navigateToPoliticianDetails(politician)}
-                >
-                  <View style={[styles.partyColorBand, { backgroundColor: partyColor }]} />
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.imageContainer}>
-                        {imageSource ? (
-                          <Image 
-                            source={imageSource}
-                            style={styles.image}
-                            resizeMode="cover"
-                            onError={() => setImageError(politician.url)}
-                          />
-                        ) : (
-                          <View style={[styles.image, styles.placeholderImage]}>
-                            <MaterialIcons name="person" size={40} color="#cccccc" />
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.headerInfo}>
-                        <Text style={styles.name}>{politician.name || 'Unknown'}</Text>
-                        <View style={styles.partyBadge}>
-                          <Text style={[styles.partyText, { color: partyColor }]}>
-                            {politician?.current_party?.short_name?.en || 'Unknown Party'}
-                          </Text>
-                        </View>
-                        <Text style={styles.ridingText}>
-                          {politician?.current_riding?.name?.en || 'Unknown Riding'}
-                          {politician?.current_riding?.province ? `, ${politician.current_riding.province}` : ''}
-                        </Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.contactInfoRow}>
-                      <View style={styles.contactSection}>
-                        {politician?.email && (
-                          <TouchableOpacity 
-                            style={styles.contactRow}
-                            onPress={() => sendEmail(politician.email || '')}
-                          >
-                            <MaterialIcons name="email" size={16} color={partyColor} style={styles.contactIcon} />
-                            <Text style={styles.contactText} numberOfLines={1} ellipsizeMode="tail">
-                              {politician.email}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                        
-                        {politician?.voice && (
-                          <TouchableOpacity 
-                            style={styles.contactRow}
-                            onPress={() => makePhoneCall(politician.voice || '')}
-                          >
-                            <MaterialIcons name="phone" size={16} color={partyColor} style={styles.contactIcon} />
-                            <Text style={styles.contactText}>{politician.voice}</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      
-                      {hasSocials && (
-                        <View style={styles.socialLinks}>
-                          {twitterUrl && (
-                            <TouchableOpacity 
-                              style={[styles.socialButton, { borderColor: '#1DA1F2', backgroundColor: '#f5f8fa' }]}
-                              onPress={() => openLink(twitterUrl)}
-                            >
-                              <FontAwesome name="twitter" size={18} color="#1DA1F2" />
-                            </TouchableOpacity>
-                          )}
-                          
-                          {wikipediaUrl && (
-                            <TouchableOpacity 
-                              style={[styles.socialButton, { borderColor: '#000000', backgroundColor: '#f8f8f8' }]}
-                              onPress={() => openLink(wikipediaUrl)}
-                            >
-                              <FontAwesome name="wikipedia-w" size={18} color="#000000" />
-                            </TouchableOpacity>
-                          )}
-                          
-                          {facebookUrl && (
-                            <TouchableOpacity 
-                              style={[styles.socialButton, { borderColor: '#3b5998', backgroundColor: '#f7f7fb' }]}
-                              onPress={() => openLink(facebookUrl)}
-                            >
-                              <FontAwesome name="facebook" size={18} color="#3b5998" />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {renderedPoliticians}
             
-            {politicians.length > 0 && (
+            {localPoliticians.length > 0 && onLoadMore && (
               <View style={styles.loadMoreContainer}>
                 {isLoadingMore && (
                   <ActivityIndicator 
@@ -271,7 +379,7 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
               </View>
             )}
             
-            {politicians.length === 0 && !loading && (
+            {localPoliticians.length === 0 && !loading && (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="person-search" size={48} color="#999" />
                 <Text style={styles.emptyText}>
@@ -306,11 +414,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: 'hidden',
     position: 'relative',
   },
+  watchText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  watchButton: {
+    position: 'absolute',
+    top: 8,
+    right: 4,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   partyColorBand: {
-    height: 6,
+    height: 8,
     width: '100%',
   },
   cardContent: {
@@ -322,9 +444,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   imageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 65,
+    height: 100,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
@@ -459,4 +580,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PoliticianList; 
+export default memo(PoliticianList); 

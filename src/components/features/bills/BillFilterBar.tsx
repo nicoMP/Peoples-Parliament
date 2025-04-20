@@ -356,19 +356,7 @@ export default function BillFilterBar({
           </View>
         </View>
         
-        {/* Session date displayed separately but attached to the header */}
-        {sessionDates && (
-          <View style={styles.sessionDateContainer}>
-            <MaterialIcons 
-              name="date-range" 
-              size={20} 
-              color={dateFilter && dateFilter !== 'all' ? '#b22234' : '#666'} 
-            />
-            <Text style={styles.sessionDateText}>
-              {formatDate(sessionDates.startDate)} - {sessionDates.endDate ? formatDate(sessionDates.endDate) : 'Present'}
-            </Text>
-          </View>
-        )}
+
 
         {/* Row 2: Type and RA Filter (can be hidden) */}
         {showFilters && (
@@ -429,27 +417,42 @@ export default function BillFilterBar({
 
         {/* Row 3: Search and Date Filter */}
         <View style={styles.searchRow}>
-          <SearchBar
-            value={searchText}
-            onChangeText={onSearchTextChange}
-            placeholder="Search bills..."
-            onSubmit={handleSubmitSearch}
-            rightButton={
-              <View style={styles.dateFilterButtonWrapper}>
-                <TouchableOpacity 
-                  style={styles.dateFilterButton}
-                  onPress={openDatePicker}
-                >
-                  <MaterialIcons 
-                    name="event" 
-                    size={26} 
-                    color='#b22234'
-                  />
-                </TouchableOpacity>
-              </View>
-            }
-          />
+          <View style={styles.searchBarContainer}>
+            <SearchBar
+              value={searchText}
+              onChangeText={onSearchTextChange}
+              placeholder="Search bills..."
+              onSubmit={handleSubmitSearch}
+              rightButton={
+                <View style={styles.dateFilterButtonWrapper}>
+                  <TouchableOpacity 
+                    style={styles.dateFilterButton}
+                    onPress={openDatePicker}
+                  >
+                    <MaterialIcons 
+                      name="event" 
+                      size={26} 
+                      color='#b22234'
+                    />
+                  </TouchableOpacity>
+                </View>
+              }
+            />
+          </View>
         </View>
+        {/* Session date displayed separately but attached to the header */}
+        {sessionDates && (
+        <View style={styles.sessionDateContainer}>
+          <MaterialIcons 
+            name="date-range" 
+            size={20} 
+            color={dateFilter && dateFilter !== 'all' ? '#b22234' : '#666'} 
+          />
+          <Text style={styles.sessionDateText}>
+            {formatDate(sessionDates.startDate)} - {sessionDates.endDate ? formatDate(sessionDates.endDate) : 'Present'}
+          </Text>
+        </View>
+        )}
 
         <DateFilterModal
           visible={showDatePicker}
@@ -474,9 +477,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5e5',
+    width: '100%',
+    alignItems: 'center',
   },
   mainContent: {
     marginBottom: 4,
+    width: '100%',
+    alignItems: 'center',
   },
   headerRow: {
     flexDirection: 'row',
@@ -485,13 +492,16 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingHorizontal: 16,
     height: 48,
+    width: '100%',
   },
   parliamentSection: {
     flex: 1,
+    alignItems: 'center',
   },
   parliamentControls: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
   },
   headerText: {
@@ -540,15 +550,17 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginBottom: 8,
     paddingHorizontal: 16,
     gap: 8,
+    width: '100%',
   },
   searchTypeContainer: {
     flex: 0.8,
     minWidth: 200,
     maxWidth: 300,
+    alignItems: 'center',
   },
   statusFilterContainer: {
     flex: 0.2,
@@ -567,10 +579,13 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginBottom: 4,
-    paddingHorizontal: 16,
-    gap: 8,
+    width: '100%',
+  },
+  searchBarContainer: {
+    width: '90%',
+    maxWidth: 800,
   },
   dateFilterButton: {
     flexDirection: 'row',
@@ -653,8 +668,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    marginBottom: 18,
-    marginTop: -10,
+    marginTop: 10,
     height: 20,
     gap: 4,
   },
@@ -696,7 +710,7 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   dateFilterButtonWrapper: {
     position: 'relative',

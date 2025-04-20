@@ -1,8 +1,21 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MyBillsScreen from '@src/screens/MyBillsScreen';
+import BillDetailScreen from '@src/screens/BillDetailScreen';
 
-const Stack = createNativeStackNavigator();
+// Create a param list for the MyBills stack
+export type MyBillsStackParamList = {
+  MyBills: undefined;
+  BillDetail: { 
+    uri: string; 
+    title?: string;
+    parliament?: string;
+    session?: string;
+    billNumber?: string;
+  };
+};
+
+const Stack = createNativeStackNavigator<MyBillsStackParamList>();
 
 export default function MyBillsStack() {
   return (
@@ -16,6 +29,13 @@ export default function MyBillsStack() {
           headerStyle: {
             backgroundColor: '#f4f4f4',
           },
+        }}
+      />
+      <Stack.Screen
+        name="BillDetail"
+        component={BillDetailScreen}
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

@@ -220,7 +220,7 @@ export default function BillNavigationBar({
   };
 
   const handleDateFieldChange = (field: string) => {
-    console.log('BillNavigationBar: Date field changed to', field);
+    // console.log('BillNavigationBar: Date field changed to', field);
     if (field && field !== selectedDateField) {
       setSelectedDateField(field);
       onDateFieldChange(field);
@@ -228,7 +228,7 @@ export default function BillNavigationBar({
   };
 
   const handleDateSortChange = (order: 'asc' | 'desc') => {
-    console.log('BillNavigationBar: Sort order changed to', order);
+    // console.log('BillNavigationBar: Sort order changed to', order);
     if (order && order !== dateSortOrder) {
       setDateSortOrder(order);
       onDateSortChange(order);

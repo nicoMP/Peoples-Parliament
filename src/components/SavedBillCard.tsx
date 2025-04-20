@@ -5,10 +5,17 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SavedBill } from '@src/services/BillPdfService';
 import { BillPdfService } from '@src/services/BillPdfService';
+import * as FileSystem from 'expo-file-system';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MyBillsStackParamList } from '@src/navigation/stacks/MyBillsStack';
+
+type NavigationProp = NativeStackNavigationProp<MyBillsStackParamList, 'MyBills'>;
 
 interface SavedBillCardProps {
   bill: SavedBill;
@@ -16,6 +23,7 @@ interface SavedBillCardProps {
   onDelete: () => void;
   onLikeChange?: (liked: boolean) => void;
   onDislikeChange?: (disliked: boolean) => void;
+  onPdfStatusChange?: () => void; // Callback when PDF status changes
 }
 
 export default function SavedBillCard({ 
@@ -23,17 +31,109 @@ export default function SavedBillCard({
   onToggleWatch, 
   onDelete,
   onLikeChange,
-  onDislikeChange 
+  onDislikeChange,
+  onPdfStatusChange
 }: SavedBillCardProps) {
   const pdfService = BillPdfService.getInstance();
   const [liked, setLiked] = useState(bill.isLiked === 1);
   const [disliked, setDisliked] = useState(bill.isDisliked === 1);
+  const [retryingDownload, setRetryingDownload] = useState(false);
+  const navigation = useNavigation<NavigationProp>();
   
   const handleViewPdf = async () => {
     try {
-      await pdfService.openPdf(bill.pdfPath, 0);
+      // If PDF is marked as missing, show an error instead of trying to open
+      if (bill.pdfMissing === 1) {
+        Alert.alert(
+          'PDF Not Available', 
+          'The PDF file is not available. Would you like to retry downloading it?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Retry', onPress: handleRetryDownload }
+          ]
+        );
+        return;
+      }
+      
+      // Check if the PDF file exists before navigating
+      const fileInfo = await FileSystem.getInfoAsync(bill.pdfPath);
+      if (!fileInfo.exists) {
+        throw new Error("PDF file not found");
+      }
+      
+      // Ensure proper path format for the PDF viewer
+      const pdfUri = bill.pdfPath.startsWith('file://') 
+        ? bill.pdfPath 
+        : `file://${bill.pdfPath}`;
+      
+      // Extract version and chamber from the filename if available
+      let versionInfo = '';
+      if (bill.pdfPath.includes('_v')) {
+        const parts = bill.pdfPath.split('_v')[1].split('.pdf')[0].split('_');
+        if (parts.length >= 2) {
+          versionInfo = ` (v${parts[0]}, ${parts[1]})`;
+        }
+      }
+      
+      const title = `${bill.billNumber}${versionInfo} - ${bill.title}`;
+      
+      // Navigate using React Navigation - include bill information for refresh capability
+      navigation.navigate('BillDetail', {
+        uri: pdfUri,
+        title: title,
+        parliament: bill.parliament,
+        session: bill.session,
+        billNumber: bill.billNumber
+      });
     } catch (error) {
-      Alert.alert('Error', 'Could not open PDF file.');
+      console.error('Error opening PDF:', error);
+      
+      // If file not found but not marked as missing, update the status
+      if (bill.pdfMissing !== 1) {
+        Alert.alert(
+          'PDF File Error',
+          'The PDF file is missing or corrupted. Would you like to retry downloading it?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Retry', onPress: handleRetryDownload }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Could not open PDF file.');
+      }
+    }
+  };
+
+  const handleRetryDownload = async () => {
+    try {
+      setRetryingDownload(true);
+      
+      // Delete the existing file first
+      await pdfService.deleteBill(bill.parliament, bill.session, bill.billNumber);
+      
+      // Re-download with current properties
+      await pdfService.downloadBillPdf(
+        bill.parliament,
+        bill.session,
+        bill.billNumber,
+        bill.title,
+        bill.billType,
+        bill.lastUpdated,
+        bill.isLiked,
+        bill.isDisliked
+      );
+      
+      // Notify parent component to refresh the list
+      if (onPdfStatusChange) {
+        onPdfStatusChange();
+      }
+      
+      Alert.alert('Success', 'PDF download retried successfully');
+    } catch (error) {
+      console.error('Error retrying download:', error);
+      Alert.alert('Error', 'Failed to retry download');
+    } finally {
+      setRetryingDownload(false);
     }
   };
 
@@ -104,6 +204,12 @@ export default function SavedBillCard({
               {getBillChamber()}
             </Text>
           </View>
+          {bill.pdfMissing === 1 && (
+            <View style={styles.pdfErrorBadge}>
+              <MaterialIcons name="error-outline" size={16} color="#F44336" />
+              <Text style={styles.pdfErrorText}>PDF Error</Text>
+            </View>
+          )}
         </View>
       </View>
       <Text style={styles.title}>{bill.title}</Text>
@@ -137,17 +243,32 @@ export default function SavedBillCard({
             />
           </Pressable>
           
-          <Pressable 
-            style={styles.actionButton} 
-            onPress={onToggleWatch}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialIcons 
-              name={bill.isWatching ? "visibility-off" : "visibility"} 
-              size={24} 
-              color={bill.isWatching ? "#666" : "#4CAF50"} 
-            />
-          </Pressable>
+          {bill.pdfMissing === 1 ? (
+            <Pressable
+              style={styles.actionButton}
+              onPress={handleRetryDownload}
+              disabled={retryingDownload}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              {retryingDownload ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : (
+                <MaterialIcons name="refresh" size={24} color="#F44336" />
+              )}
+            </Pressable>
+          ) : (
+            <Pressable 
+              style={styles.actionButton} 
+              onPress={onToggleWatch}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name={bill.isWatching ? "visibility-off" : "visibility"} 
+                size={24} 
+                color={bill.isWatching ? "#666" : "#4CAF50"} 
+              />
+            </Pressable>
+          )}
           
           <Pressable 
             style={styles.actionButton} 
@@ -267,5 +388,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     textAlign: 'right',
+  },
+  pdfErrorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  pdfErrorText: {
+    color: '#F44336',
+    fontWeight: '600',
+    fontSize: 12,
   },
 }); 

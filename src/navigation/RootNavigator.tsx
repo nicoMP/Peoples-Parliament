@@ -6,8 +6,12 @@ const Stack = createNativeStackNavigator();
 
 export default function RootNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={MainTabs} />
+    <Stack.Navigator>
+      <Stack.Screen
+        name="MainTabs"
+        component={MainTabs}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }

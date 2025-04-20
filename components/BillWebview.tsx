@@ -6,13 +6,12 @@ import { RootStackParamList } from '@/constants/constants';
 
 const BillDetails = () => {
   const route = useRoute<RouteProp<RootStackParamList, 'BillDetails'>>();
-  const { session, number, parliament = "44" } = route.params;
+  const { session = "1", number} = route.params;
   
   // Construct the URL using the new legisinfo format
   // Format: https://www.parl.ca/legisinfo/en/bill/44-1/s-291
   // Where 44 is parliament, 1 is session, and s-291 is the bill number
-  const url = `https://www.parl.ca/legisinfo/en/bill/${parliament}-${session}/${number.toLowerCase()}`;
-
+  const url = `https://www.parl.ca/legisinfo/en/bill/${session}/${number.toLowerCase()}`;
   const [isLoading, setIsLoading] = useState(true);
 
   return (

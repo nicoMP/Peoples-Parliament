@@ -1,7 +1,7 @@
 import { baseWebParliamentUrlEn, RootStackParamList } from '@/constants/constants';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BillPdfService } from '@src/services/BillPdfService';
+import * as FileSystem from 'expo-file-system';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'BillDetails'>;
 
@@ -63,6 +64,7 @@ export default function BillCard(props: BillCardProps) {
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [pdfMissing, setPdfMissing] = useState(false);
   const navigation = useNavigation<NavigationProp>();
   const pdfService = BillPdfService.getInstance();
 
@@ -77,38 +79,69 @@ export default function BillCard(props: BillCardProps) {
 
   const parliament = getParliament();
 
+  // Check bill status on mount
   useEffect(() => {
-    // Check if bill is already saved, liked or disliked
-    const checkBillStatus = async () => {
-      try {
-        const savedBills = await pdfService.getAllSavedBills();
-        const thisBill = savedBills.find(bill => 
-          bill.parliament === parliament && 
-          bill.session === session && 
-          bill.billNumber === BillNumberFormatted
-        );
-        
-        if (thisBill) {
-          setSaved(true);
-          setLiked(thisBill.isLiked === 1);
-          setDisliked(thisBill.isDisliked === 1);
-        }
-      } catch (error) {
-        console.error('Error checking bill status:', error);
-      }
-    };
-    
     checkBillStatus();
   }, []);
 
+  // Re-check bill status when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log(`[BillCard] Screen focused, checking status for bill ${BillNumberFormatted}`);
+      checkBillStatus();
+      return () => {
+        // cleanup if needed
+      };
+    }, [])
+  );
+
+  const checkBillStatus = async () => {
+    try {
+      console.log(`[BillCard] Checking status for bill ${parliament}/${session}/${BillNumberFormatted}`);
+      const savedBills = await pdfService.getAllSavedBills();
+      const thisBill = savedBills.find(bill => 
+        bill.parliament === parliament && 
+        bill.session === session && 
+        bill.billNumber === BillNumberFormatted
+      );
+      
+      if (thisBill) {
+        console.log(`[BillCard] Bill found in saved bills: ${JSON.stringify(thisBill)}`);
+        setSaved(true);
+        setLiked(thisBill.isLiked === 1);
+        setDisliked(thisBill.isDisliked === 1);
+        setPdfMissing(thisBill.pdfMissing === 1);
+      } else {
+        console.log(`[BillCard] Bill not found in saved bills`);
+        setSaved(false);
+        setLiked(false);
+        setDisliked(false);
+        setPdfMissing(false);
+      }
+    } catch (error) {
+      console.error('[BillCard] Error checking bill status:', error);
+    }
+  };
+
   const goToBillDetails = () => {
-    navigation.navigate('BillDetails', { session, number, parliament });
+    navigation.navigate('BillDetails', { session, number });
   };
 
   const handleSaveBill = async (isLiked = liked, isDisliked = disliked) => {
     try {
       setDownloading(true);
       const lastUpdated = getLastInteractionDate();
+      
+      console.log('[BillCard] Saving bill:', {
+        parliament,
+        session,
+        billNumber: BillNumberFormatted,
+        title: LongTitleEn,
+        type: BillTypeEn,
+        lastUpdated,
+        isLiked: isLiked ? 1 : 0,
+        isDisliked: isDisliked ? 1 : 0
+      });
       
       const pdfPath = await pdfService.downloadBillPdf(
         parliament,
@@ -121,7 +154,7 @@ export default function BillCard(props: BillCardProps) {
         isDisliked ? 1 : 0
       );
       
-      console.log('PDF saved at:', pdfPath);
+      console.log('[BillCard] PDF saved successfully at:', pdfPath);
       
       if (Platform.OS === 'android') {
         ToastAndroid.show('Bill saved successfully', ToastAndroid.SHORT);
@@ -129,10 +162,21 @@ export default function BillCard(props: BillCardProps) {
         Alert.alert('Success', 'Bill saved to My Bills');
       }
       setSaved(true);
+      
+      // Check if the PDF is missing after download
+      const savedBills = await pdfService.getAllSavedBills();
+      const thisBill = savedBills.find(bill => 
+        bill.parliament === parliament && 
+        bill.session === session && 
+        bill.billNumber === BillNumberFormatted
+      );
+      setPdfMissing(thisBill ? thisBill.pdfMissing === 1 : false);
+      
     } catch (error) {
-      console.log('Error details:', error);
-      console.error('Error saving bill:', error);
+      console.log('[BillCard] Error saving bill - details:', error);
+      console.error('[BillCard] Failed to save bill PDF:', error instanceof Error ? error.message : 'Unknown error');
       Alert.alert('Error', 'Failed to save bill PDF');
+      setPdfMissing(true);
     } finally {
       setDownloading(false);
     }
@@ -175,6 +219,117 @@ export default function BillCard(props: BillCardProps) {
       console.error('Error updating dislike status:', error);
       // Revert state on error
       setDisliked(!newDisliked);
+    }
+  };
+
+  // Add a function to retry the PDF download
+  const handleRetryDownload = async () => {
+    setDownloading(true);
+    try {
+      // Delete existing PDF and records first
+      await pdfService.deleteBill(parliament, session, BillNumberFormatted);
+      
+      // Resave with current like/dislike status
+      const lastUpdated = getLastInteractionDate();
+      await pdfService.downloadBillPdf(
+        parliament,
+        session,
+        BillNumberFormatted,
+        LongTitleEn,
+        BillTypeEn,
+        lastUpdated,
+        liked ? 1 : 0,
+        disliked ? 1 : 0
+      );
+      
+      // Recheck status
+      await checkBillStatus();
+      
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('PDF download retried', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Success', 'PDF download retried');
+      }
+    } catch (error) {
+      console.error('[BillCard] Error retrying download:', error);
+      Alert.alert('Error', 'Failed to retry download');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleViewPdf = async () => {
+    if (!saved) {
+      // Save the bill first if it's not already saved
+      Alert.alert(
+        'PDF Not Available',
+        'The PDF needs to be downloaded first. Would you like to download it now?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Download', onPress: () => handleSaveBill() }
+        ]
+      );
+      return;
+    }
+    
+    // If PDF is marked as missing, handle retry
+    if (pdfMissing) {
+      Alert.alert(
+        'PDF Not Available', 
+        'The PDF file is not available. Would you like to retry downloading it?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleRetryDownload }
+        ]
+      );
+      return;
+    }
+    
+    try {
+      const pdfPath = await pdfService.getBillPdfPath(parliament, session, BillNumberFormatted);
+      
+      if (!pdfPath) {
+        throw new Error("PDF file not found");
+      }
+      
+      // Check if the file exists
+      const fileInfo = await FileSystem.getInfoAsync(pdfPath);
+      if (!fileInfo.exists) {
+        throw new Error("PDF file not found on device");
+      }
+      
+      // Ensure proper path format for the PDF viewer
+      const pdfUri = pdfPath.startsWith('file://') 
+        ? pdfPath 
+        : `file://${pdfPath}`;
+      
+      // Extract version and chamber from the filename if available
+      let versionInfo = '';
+      if (pdfPath.includes('_v')) {
+        const parts = pdfPath.split('_v')[1].split('.pdf')[0].split('_');
+        if (parts.length >= 2) {
+          versionInfo = ` (v${parts[0]}, ${parts[1]})`;
+        }
+      }
+      
+      // Navigate to PDF viewer with all needed parameters
+      navigation.navigate('PDFViewer', {
+        uri: pdfUri,
+        title: `${BillNumberFormatted}${versionInfo} - ${LongTitleEn}`,
+        parliament: parliament,
+        session: session,
+        billNumber: BillNumberFormatted
+      });
+    } catch (error) {
+      console.error('[BillCard] Error opening PDF:', error);
+      Alert.alert(
+        'PDF Error',
+        'Could not open the PDF file. Would you like to try downloading it again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleRetryDownload }
+        ]
+      );
     }
   };
 
@@ -281,6 +436,12 @@ export default function BillCard(props: BillCardProps) {
               </Text>
             </View>
           )}
+          {saved && pdfMissing && (
+            <View style={styles.pdfErrorBadge}>
+              <MaterialIcons name="error-outline" size={16} color="#F44336" />
+              <Text style={styles.pdfErrorText}>PDF Error</Text>
+            </View>
+          )}
         </View>
       </View>
       <Text style={styles.title}>{LongTitleEn}</Text>
@@ -331,18 +492,47 @@ export default function BillCard(props: BillCardProps) {
             />
           </Pressable>
 
-          <Pressable 
-            onPress={() => handleSaveBill()} 
-            style={styles.actionButton}
-            disabled={downloading}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialIcons 
-              name={downloading ? "hourglass-top" : saved ? "check" : "save"} 
-              size={20} 
-              color={saved ? "#4CAF50" : "#007AFF"} 
-            />
-          </Pressable>
+          {saved && pdfMissing ? (
+            <Pressable 
+              onPress={handleRetryDownload} 
+              style={styles.actionButton}
+              disabled={downloading}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name={downloading ? "hourglass-top" : "refresh"} 
+                size={20} 
+                color="#F44336" 
+              />
+            </Pressable>
+          ) : (
+            <Pressable 
+              onPress={() => handleSaveBill()} 
+              style={styles.actionButton}
+              disabled={downloading}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name={downloading ? "hourglass-top" : saved ? "check" : "save"} 
+                size={20} 
+                color={saved ? "#4CAF50" : "#007AFF"} 
+              />
+            </Pressable>
+          )}
+          
+          {saved && !pdfMissing && (
+            <Pressable 
+              onPress={handleViewPdf} 
+              style={styles.actionButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name="picture-as-pdf" 
+                size={20} 
+                color="#007AFF" 
+              />
+            </Pressable>
+          )}
         </View>
         <Text style={styles.lastInteractionDate}>
           Last updated: {new Date(getLastInteractionDate()).toLocaleDateString()}
@@ -480,5 +670,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     textAlign: 'right',
+  },
+  pdfErrorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  pdfErrorText: {
+    color: '#F44336',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });

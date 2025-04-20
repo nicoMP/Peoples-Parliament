@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import Dropdown from '@components/Dropdown';
@@ -43,6 +43,52 @@ export default function DateFilterModal({
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [pickerMode, setPickerMode] = useState<'start' | 'end'>('start');
+  const [localDateField, setLocalDateField] = useState<string>(selectedDateField || 'LastUpdatedDateTime');
+  const [localSortOrder, setLocalSortOrder] = useState<'asc' | 'desc'>(dateSortOrder || 'desc');
+  const isInitialized = useRef(false);
+  
+  // One-time initialization on mount
+  useEffect(() => {
+    if (!isInitialized.current) {
+      // Set defaults and notify parent
+      const defaultField = 'LastUpdatedDateTime';
+      const defaultOrder = 'desc';
+      
+      console.log('Initializing DateFilterModal with defaults:', defaultField, defaultOrder);
+      
+      setLocalDateField(defaultField);
+      setLocalSortOrder(defaultOrder);
+      
+      // Explicitly call parent handlers with defaults
+      onDateFieldChange(defaultField);
+      onDateSortChange(defaultOrder);
+      
+      isInitialized.current = true;
+    }
+  }, []);
+  
+  // Sync with parent props
+  useEffect(() => {
+    if (selectedDateField && selectedDateField !== localDateField) {
+      setLocalDateField(selectedDateField);
+    }
+  }, [selectedDateField]);
+  
+  useEffect(() => {
+    if (dateSortOrder && dateSortOrder !== localSortOrder) {
+      setLocalSortOrder(dateSortOrder);
+    }
+  }, [dateSortOrder]);
+  
+  // Apply values when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      console.log('Modal visible, applying filters:', localDateField, localSortOrder);
+      // Ensure current values are applied when modal is shown
+      onDateFieldChange(localDateField); 
+      onDateSortChange(localSortOrder);
+    }
+  }, [visible, localDateField, localSortOrder, onDateFieldChange, onDateSortChange]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
@@ -60,16 +106,23 @@ export default function DateFilterModal({
   };
 
   const handleDateFieldChange = (field: string) => {
+    console.log('Changing date field to:', field);
+    setLocalDateField(field);
     onDateFieldChange(field);
   };
 
   const handleDateSortChange = () => {
-    const newOrder = dateSortOrder === 'asc' ? 'desc' : 'asc';
+    const newOrder = localSortOrder === 'asc' ? 'desc' : 'asc';
+    console.log('Changing sort order to:', newOrder);
+    setLocalSortOrder(newOrder);
     onDateSortChange(newOrder);
   };
 
   const handleDateFilterSelect = (filter: string) => {
     onDateFilterChange(filter);
+    // Make sure current field and sort order are applied when closing
+    onDateFieldChange(localDateField);
+    onDateSortChange(localSortOrder);
     onClose();
   };
 
@@ -88,7 +141,7 @@ export default function DateFilterModal({
             <Dropdown
               label=""
               options={DATE_FIELDS.map(field => field.label)}
-              selectedValue={DATE_FIELDS.find(f => f.value === selectedDateField)?.label || ''}
+              selectedValue={DATE_FIELDS.find(f => f.value === localDateField)?.label || 'Last Updated'}
               onSelect={(label) => {
                 const field = DATE_FIELDS.find(f => f.label === label)?.value || 'LastUpdatedDateTime';
                 handleDateFieldChange(field);
@@ -99,11 +152,14 @@ export default function DateFilterModal({
               maxWidth={300}
             />
             <TouchableOpacity 
-              style={styles.sortButton}
+              style={[
+                styles.sortButton,
+                localSortOrder === 'asc' ? styles.sortButtonAsc : styles.sortButtonDesc
+              ]}
               onPress={handleDateSortChange}
             >
               <MaterialIcons 
-                name={dateSortOrder === 'asc' ? "arrow-upward" : "arrow-downward"} 
+                name={localSortOrder === 'asc' ? "arrow-upward" : "arrow-downward"} 
                 size={20} 
                 color="#b22234" 
               />
@@ -136,13 +192,21 @@ export default function DateFilterModal({
               onPress={() => {
                 onClose();
                 onDateFilterChange('all');
+                // Ensure default field and sort are applied when closing
+                onDateFieldChange(localDateField);
+                onDateSortChange(localSortOrder);
               }}
             >
               <Text style={styles.modalButtonText}>Clear</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={onClose}
+              onPress={() => {
+                // Ensure field and sort are applied when closing
+                onDateFieldChange(localDateField);
+                onDateSortChange(localSortOrder);
+                onClose();
+              }}
             >
               <Text style={styles.modalButtonText}>Close</Text>
             </TouchableOpacity>
@@ -204,6 +268,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#b22234',
+  },
+  sortButtonAsc: {
+    backgroundColor: '#f8e7e7',
+  },
+  sortButtonDesc: {
+    backgroundColor: '#e7f0f8',
   },
   dateFilterOptions: {
     marginVertical: 16,

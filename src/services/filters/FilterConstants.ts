@@ -26,5 +26,5 @@ export const DATE_FILTERS = [
   { label: 'Last 6 months', value: '180' },
   { label: 'Last year', value: '365' },
   { label: 'Last 4 years', value: '1460' },
-  { label: 'All time', value: 'all' }
+  { label: 'All time', value: 'all' },
 ]; 

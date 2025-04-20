@@ -2,16 +2,41 @@ import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text, Modal, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Dropdown from '@components/Dropdown';
+import Dropdown, { DropdownOption } from '@components/Dropdown';
 import Sessions from '@constants/Sessions.json';
 import axios from 'axios';
 import { baseParliamentUrl } from '@constants/constants';
 import { initDatabase, saveBills, getBills, clearOldData, getSessions, saveSessions } from '@services/database';
 import { ApiBill } from '@src/types/bill';
-import { SearchType, RoyalAssentFilter } from '@services/filters/BillFilterService';
+import { SearchType, RoyalAssentFilter, BillFilterOptions, StatusFilter } from '@services/filters/BillFilterService';
 import { SEARCH_TYPES } from '@services/filters/FilterConstants';
 import DateFilterModal from '../../modals/DateFilterModal';
 import SearchBar from '../common/SearchBar';
+import { FilterIndicatorService } from '@services/filters/FilterIndicatorService';
+
+// Interface for status filter items with proper icon type
+interface StatusFilterItem {
+  label: string;
+  value: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  color?: string;
+}
+
+// Constants for status filters with icons
+const STATUS_FILTERS: DropdownOption[] = [
+  { label: 'All Bills', value: 'all', icon: 'list', iconColor: '#666' },
+  { label: 'Liked', value: 'liked', icon: 'thumb-up', iconColor: '#4CAF50' },
+  { label: 'Disliked', value: 'disliked', icon: 'thumb-down', iconColor: '#F44336' },
+  { label: 'Saved', value: 'saved', icon: 'save', iconColor: '#007AFF' },
+  { label: 'Watching', value: 'watching', icon: 'visibility', iconColor: '#FF9800' },
+];
+
+// Constants for royal assent filters with icons
+const RA_FILTERS: DropdownOption[] = [
+  { label: 'All Bills', value: 'both', icon: 'stars', iconColor: '#666' },
+  { label: 'With Royal Assent', value: 'in_progress', icon: 'check-circle', iconColor: '#4CAF50' },
+  { label: 'Without Royal Assent', value: 'none', icon: 'cancel', iconColor: '#F44336' },
+];
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('en-US', {
@@ -39,6 +64,10 @@ interface BillNavigationBarProps {
   onDateFilterChange?: (filter: string) => void;
   onDateFieldChange?: (field: string) => void;
   onDateSortChange?: (order: 'asc' | 'desc') => void;
+  statusFilter?: StatusFilter;
+  onStatusFilterChange?: (filter: StatusFilter) => void;
+  showStatusFilter?: boolean;
+  disableSafeArea?: boolean;
 }
 
 export default function BillNavigationBar({
@@ -59,6 +88,10 @@ export default function BillNavigationBar({
   onDateFilterChange = () => {},
   onDateFieldChange = () => {},
   onDateSortChange = () => {},
+  statusFilter = 'all',
+  onStatusFilterChange = () => {},
+  showStatusFilter = false,
+  disableSafeArea = false,
 }: BillNavigationBarProps) {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -67,8 +100,11 @@ export default function BillNavigationBar({
   const [sessionDates, setSessionDates] = useState<Readonly<{ startDate: string; endDate: string }> | null>(null);
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [selectedDateField, setSelectedDateField] = useState('LastUpdatedDateTime');
+  const [selectedDateField, setSelectedDateField] = useState<string>('LastUpdatedDateTime');
   const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const filterIndicatorService = useMemo(() => FilterIndicatorService.getInstance(), []);
 
   const parliaments = useMemo(() => Sessions.parliaments.map((p) => p.parliament.toString()), []);
   const selectedParliamentSessions = useMemo(() => {
@@ -164,6 +200,13 @@ export default function BillNavigationBar({
 
   useEffect(() => {
     initDatabase();
+    
+    // Set default date field and sort order
+    console.log('Initializing navigation bar with defaults:', 'LastUpdatedDateTime', 'desc');
+    setSelectedDateField('LastUpdatedDateTime');
+    setDateSortOrder('desc');
+    onDateFieldChange('LastUpdatedDateTime');
+    onDateSortChange('desc');
   }, []);
 
   const getSearchTypeLabel = () => {
@@ -171,14 +214,25 @@ export default function BillNavigationBar({
     return type ? type.label : SEARCH_TYPES[0].label;
   };
 
+  const getStatusFilterLabel = () => {
+    const filter = STATUS_FILTERS.find(f => f.value === statusFilter);
+    return filter ? filter.label : STATUS_FILTERS[0].label;
+  };
+
   const handleDateFieldChange = (field: string) => {
-    setSelectedDateField(field);
-    onDateFieldChange(field);
+    console.log('BillNavigationBar: Date field changed to', field);
+    if (field && field !== selectedDateField) {
+      setSelectedDateField(field);
+      onDateFieldChange(field);
+    }
   };
 
   const handleDateSortChange = (order: 'asc' | 'desc') => {
-    setDateSortOrder(order);
-    onDateSortChange(order);
+    console.log('BillNavigationBar: Sort order changed to', order);
+    if (order && order !== dateSortOrder) {
+      setDateSortOrder(order);
+      onDateSortChange(order);
+    }
   };
 
   const handleDateFilterSelect = (filter: string) => {
@@ -186,18 +240,60 @@ export default function BillNavigationBar({
     setShowDatePicker(false);
   };
 
-  // Initialize selectedDateField in parent when component mounts
-  useEffect(() => {
-    // Pass initial date field to parent
-    onDateFieldChange(selectedDateField);
-  }, [selectedDateField, onDateFieldChange]);
+  // Re-apply filters when opening date picker
+  const openDatePicker = () => {
+    // Make sure current values are applied before opening modal
+    console.log('Opening date picker with:', selectedDateField, dateSortOrder);
+    onDateFieldChange(selectedDateField || 'LastUpdatedDateTime');
+    onDateSortChange(dateSortOrder || 'desc');
+    Keyboard.dismiss();
+    setShowDatePicker(true);
+  };
 
   const handleSubmitSearch = () => {
     Keyboard.dismiss();
   };
 
+  // Calculate active filters count
+  const activeFiltersCount = useMemo(() => {
+    const options: BillFilterOptions = {
+      searchText,
+      searchType,
+      royalAssentFilter,
+      startDate,
+      endDate,
+      statusFilter
+    };
+    return filterIndicatorService.countActiveFilters(options);
+  }, [searchText, searchType, royalAssentFilter, startDate, endDate, statusFilter, filterIndicatorService]);
+
+  // Add handler for custom date range changes
+  useEffect(() => {
+    if (dateFilter === 'custom' && startDate && endDate) {
+      onDateRangeChange(startDate, endDate);
+    } else if (dateFilter === 'all') {
+      setStartDate(undefined);
+      setEndDate(undefined);
+      onDateRangeChange(undefined, undefined);
+    }
+  }, [dateFilter, startDate, endDate, onDateRangeChange]);
+
+  const handleDateRangeChange = (start?: Date, end?: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+    onDateRangeChange(start, end);
+    
+    // If we're setting a custom date range, change dateFilter to 'custom'
+    if (start && end && dateFilter !== 'custom') {
+      onDateFilterChange('custom');
+    }
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+    <View style={[
+      styles.container, 
+      { paddingTop: disableSafeArea ? 8 : insets.top + 8 }
+    ]}>
       <View style={styles.mainContent} onTouchStart={() => Keyboard.dismiss()}>
         {/* Row 1: Parliament and Session */}
         <View style={styles.headerRow}>
@@ -238,11 +334,13 @@ export default function BillNavigationBar({
               style={styles.filterToggleButton}
               onPress={() => setShowFilters(!showFilters)}
             >
-              <MaterialIcons 
-                name={showFilters ? "search" : "search-off"} 
-                size={20} 
-                color="#b22234" 
-              />
+              <View style={styles.filterButtonWrapper}>
+                <MaterialIcons 
+                  name={showFilters ? "search" : "search-off"} 
+                  size={20} 
+                  color="#b22234" 
+                />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.refreshButton}
@@ -261,7 +359,11 @@ export default function BillNavigationBar({
         {/* Session date displayed separately but attached to the header */}
         {sessionDates && (
           <View style={styles.sessionDateContainer}>
-            <MaterialIcons name="calendar-today" size={14} color="#666" />
+            <MaterialIcons 
+              name="date-range" 
+              size={20} 
+              color={dateFilter && dateFilter !== 'all' ? '#b22234' : '#666'} 
+            />
             <Text style={styles.sessionDateText}>
               {formatDate(sessionDates.startDate)} - {sessionDates.endDate ? formatDate(sessionDates.endDate) : 'Present'}
             </Text>
@@ -272,58 +374,56 @@ export default function BillNavigationBar({
         {showFilters && (
           <View style={styles.filterRow}>
             <View style={styles.searchTypeContainer}>
-              <Dropdown
-                label=""
-                options={SEARCH_TYPES.map(type => type.label)}
-                selectedValue={getSearchTypeLabel()}
-                onSelect={(label) => {
-                  const type = SEARCH_TYPES.find(t => t.label === label)?.value || 'default';
-                  onSearchTypeChange(type as SearchType);
-                }}
-                textColor="#b22234"
-                width={200}
-                height={36}
-                maxWidth={300}
-              />
+              <View style={styles.dropdownWrapper}>
+                <View style={styles.filterLabelContainer}>
+                  <Text style={styles.filterLabel}>Filter by:</Text>
+                </View>
+                <Dropdown
+                  label=""
+                  options={SEARCH_TYPES.map(type => type.label)}
+                  selectedValue={getSearchTypeLabel()}
+                  onSelect={(label) => {
+                    const type = SEARCH_TYPES.find(t => t.label === label)?.value || 'default';
+                    onSearchTypeChange(type as SearchType);
+                  }}
+                  textColor="#b22234"
+                  width={200}
+                  height={36}
+                  maxWidth={300}
+                />
+              </View>
             </View>
-            <TouchableOpacity 
-              style={[
-                styles.royalAssentButton,
-                royalAssentFilter !== 'both' && styles.royalAssentButtonActive
-              ]}
-              onPress={() => {
-                const nextFilter = royalAssentFilter === 'both' ? 'in_progress' : 
-                                 royalAssentFilter === 'in_progress' ? 'none' : 'both';
-                onRoyalAssentFilterChange(nextFilter);
-              }}
-            >
-              {royalAssentFilter === 'both' ? (
-                <MaterialIcons 
-                  name="stars" 
-                  size={20} 
-                  color="#999" 
+            {showStatusFilter ? (
+              <View style={styles.statusFilterContainer}>
+                <View style={[styles.dropdownWrapper, styles.statusDropdownWrapper]}>
+                  <Dropdown
+                    label=""
+                    options={STATUS_FILTERS}
+                    selectedValue={statusFilter}
+                    onSelect={(value) => onStatusFilterChange(value as StatusFilter)}
+                    textColor="#b22234"
+                    width={60}
+                    height={36}
+                    maxWidth={200}
+                    showIconOnly={true}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.raFilterContainer}>
+                <Dropdown
+                  label=""
+                  options={RA_FILTERS}
+                  selectedValue={royalAssentFilter}
+                  onSelect={(value) => onRoyalAssentFilterChange(value as RoyalAssentFilter)}
+                  textColor="#b22234"
+                  width={60}
+                  height={36}
+                  maxWidth={250}
+                  showIconOnly={true}
                 />
-              ) : royalAssentFilter === 'in_progress' ? (
-                <MaterialIcons 
-                  name="check-circle" 
-                  size={20} 
-                  color="#fff" 
-                />
-              ) : (
-                <MaterialIcons 
-                  name="cancel" 
-                  size={20} 
-                  color="#fff" 
-                />
-              )}
-              <Text style={[
-                styles.royalAssentText,
-                royalAssentFilter !== 'both' && styles.royalAssentTextActive
-              ]}>
-                {royalAssentFilter === 'in_progress' ? 'RA ✓' : 
-                 royalAssentFilter === 'none' ? 'RA ✕' : 'RA'}
-              </Text>
-            </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -335,22 +435,18 @@ export default function BillNavigationBar({
             placeholder="Search bills..."
             onSubmit={handleSubmitSearch}
             rightButton={
-              <TouchableOpacity 
-                style={[
-                  styles.dateFilterButton,
-                  dateFilter !== 'all' && styles.dateFilterButtonActive
-                ]}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setShowDatePicker(true);
-                }}
-              >
-                <MaterialIcons 
-                  name="access-time" 
-                  size={20} 
-                  color={dateFilter !== 'all' ? '#fff' : '#b22234'} 
-                />
-              </TouchableOpacity>
+              <View style={styles.dateFilterButtonWrapper}>
+                <TouchableOpacity 
+                  style={styles.dateFilterButton}
+                  onPress={openDatePicker}
+                >
+                  <MaterialIcons 
+                    name="event" 
+                    size={26} 
+                    color='#b22234'
+                  />
+                </TouchableOpacity>
+              </View>
             }
           />
         </View>
@@ -362,7 +458,7 @@ export default function BillNavigationBar({
           onDateFilterChange={handleDateFilterSelect}
           onDateFieldChange={handleDateFieldChange}
           onDateSortChange={handleDateSortChange}
-          onDateRangeChange={onDateRangeChange}
+          onDateRangeChange={handleDateRangeChange}
           selectedDateField={selectedDateField}
           dateSortOrder={dateSortOrder}
         />
@@ -454,31 +550,19 @@ const styles = StyleSheet.create({
     minWidth: 200,
     maxWidth: 300,
   },
-  royalAssentButton: {
+  statusFilterContainer: {
     flex: 0.2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#b22234',
-    gap: 4,
-    height: 36,
     minWidth: 60,
+    maxWidth: 80,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
-  royalAssentButtonActive: {
-    backgroundColor: '#b22234',
-  },
-  royalAssentText: {
-    color: '#999',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  royalAssentTextActive: {
-    color: '#fff',
+  raFilterContainer: {
+    flex: 0.2,
+    minWidth: 60,
+    maxWidth: 80,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   searchRow: {
     flexDirection: 'row',
@@ -489,18 +573,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateFilterButton: {
-    flex: 0.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#b22234',
-    height: 32,
-    minWidth: 60,
+    height: 36,
+    minWidth: 36,
   },
   dateFilterButtonActive: {
     backgroundColor: '#b22234',
@@ -573,7 +653,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    marginBottom: 12,
+    marginBottom: 18,
     marginTop: -10,
     height: 20,
     gap: 4,
@@ -603,5 +683,40 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#b22234',
+  },
+  filterButtonWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  dropdownWrapper: {
+    position: 'relative', 
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateFilterButtonWrapper: {
+    position: 'relative',
+  },
+  dateFilterBadgeContainer: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 1,
+  },
+  filterLabelContainer: {
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  filterLabel: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  statusDropdownWrapper: {
+    justifyContent: 'flex-end',
   },
 }); 

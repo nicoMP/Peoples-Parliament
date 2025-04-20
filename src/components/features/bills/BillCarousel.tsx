@@ -42,6 +42,8 @@ export default function BillCarousel() {
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [dateField, setDateField] = useState<DateField>('LatestActivityDateTime');
   const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [likedFilter, setLikedFilter] = useState<boolean | undefined>(undefined);
+  const [watchedFilter, setWatchedFilter] = useState<boolean | undefined>(undefined);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
   const handleSearchTextChange = useCallback((text: string) => {
@@ -88,6 +90,7 @@ export default function BillCarousel() {
 
   const handleDateFieldChange = useCallback((field: string) => {
     setDateField(field as DateField);
+    setSortBy('date');
   }, []);
 
   const handleDateSortChange = useCallback((order: 'asc' | 'desc') => {
@@ -109,8 +112,11 @@ export default function BillCarousel() {
       endDate,
       sortBy,
       dateField,
+      liked: likedFilter,
+      watched: watchedFilter,
+      sortOrder: dateSortOrder
     });
-  }, [bills, searchText, searchType, royalAssentFilter, dateFilter, startDate, endDate, sortBy, dateField]);
+  }, [bills, searchText, searchType, royalAssentFilter, dateFilter, startDate, endDate, sortBy, dateField, dateSortOrder, likedFilter, watchedFilter]);
 
   const renderItem = useCallback(({ item }: { item: ApiBill }) => (
     <View style={styles.cardContainer}>
@@ -225,5 +231,10 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 16,
     textAlign: 'center',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 12,
   },
 });

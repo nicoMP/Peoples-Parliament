@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+
+// Interface for dropdown option with optional icon
+export interface DropdownOption {
+  label: string;
+  value: string;
+  icon?: keyof typeof MaterialIcons.glyphMap;
+  iconColor?: string;
+}
 
 interface DropdownProps {
   label: string;
-  options: string[];
+  options: string[] | DropdownOption[];
   selectedValue: string;
   onSelect: (value: string) => void;
   textColor?: string;
@@ -12,6 +21,7 @@ interface DropdownProps {
   maxWidth?: number;
   maxHeight?: number;
   isTextLike?: boolean;
+  showIconOnly?: boolean;
 }
 
 const Dropdown: React.FC<DropdownProps> = ({ 
@@ -24,15 +34,24 @@ const Dropdown: React.FC<DropdownProps> = ({
   height = 32,
   maxWidth,
   maxHeight,
-  isTextLike = false
+  isTextLike = false,
+  showIconOnly = false
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
 
   const screenHeight = Dimensions.get('window').height;
   const optionHeight = 40;
   const maxModalHeight = maxHeight || screenHeight * 0.4;
-  const modalHeight = Math.min(options.length * optionHeight, maxModalHeight);
-  const isScrollable = options.length * optionHeight > maxModalHeight;
+  const modalHeight = Math.min((Array.isArray(options) ? options.length : 0) * optionHeight, maxModalHeight);
+  const isScrollable = (Array.isArray(options) ? options.length : 0) * optionHeight > maxModalHeight;
+
+  // Determine if options are complex (with icons) or simple strings
+  const isComplexOptions = Array.isArray(options) && options.length > 0 && typeof options[0] !== 'string';
+  
+  // Find the selected option object if using complex options
+  const selectedOption = isComplexOptions 
+    ? (options as DropdownOption[]).find(option => option.value === selectedValue) 
+    : null;
 
   const styles = StyleSheet.create({
     dropdownContainer: {
@@ -55,6 +74,7 @@ const Dropdown: React.FC<DropdownProps> = ({
       paddingHorizontal: isTextLike ? 0 : 12,
       borderRadius: isTextLike ? 0 : 5,
       flex: 1,
+      flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: isTextLike ? 0 : 1,
@@ -69,6 +89,15 @@ const Dropdown: React.FC<DropdownProps> = ({
       textAlign: 'center',
       width: '100%',
       color: textColor,
+    },
+    dropdownIcon: {
+      marginRight: showIconOnly ? 0 : 8,
+    },
+    optionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '100%',
     },
     modalOverlay: {
       flex: 1,
@@ -90,14 +119,114 @@ const Dropdown: React.FC<DropdownProps> = ({
       borderBottomWidth: 1,
       borderBottomColor: '#b22234',
       paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     modalText: {
       fontSize: 16,
       color: '#333',
       textAlign: 'center',
-      width: '100%',
+      flex: 1,
+    },
+    modalIcon: {
+      marginRight: 8,
     },
   });
+
+  // Render the selected value (text, icon, or both)
+  const renderSelectedValue = () => {
+    if (isComplexOptions && selectedOption?.icon) {
+      return (
+        <View style={styles.optionRow}>
+          <MaterialIcons 
+            name={selectedOption.icon} 
+            size={20} 
+            color={selectedOption.iconColor || textColor}
+            style={styles.dropdownIcon}
+          />
+          {!showIconOnly && (
+            <Text 
+              style={[styles.dropdownText, { color: textColor }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {selectedOption.label}
+            </Text>
+          )}
+        </View>
+      );
+    } else {
+      return (
+        <Text 
+          style={[styles.dropdownText, { color: textColor }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {selectedValue}
+        </Text>
+      );
+    }
+  };
+
+  // Render an option item in the dropdown
+  const renderOption = (option: string | DropdownOption, index: number, isLast: boolean) => {
+    if (typeof option === 'string') {
+      return (
+        <TouchableOpacity
+          key={option}
+          style={[
+            styles.modalItem,
+            { height: optionHeight },
+            isLast && { borderBottomWidth: 0 },
+          ]}
+          onPress={() => {
+            onSelect(option);
+            setModalVisible(false);
+          }}
+        >
+          <Text 
+            style={styles.modalText}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {option}
+          </Text>
+        </TouchableOpacity>
+      );
+    } else {
+      return (
+        <TouchableOpacity
+          key={option.value}
+          style={[
+            styles.modalItem,
+            { height: optionHeight },
+            isLast && { borderBottomWidth: 0 },
+          ]}
+          onPress={() => {
+            onSelect(option.value);
+            setModalVisible(false);
+          }}
+        >
+          <View style={styles.optionRow}>
+            {option.icon && (
+              <MaterialIcons 
+                name={option.icon} 
+                size={20} 
+                color={option.iconColor || '#333'}
+                style={styles.modalIcon}
+              />
+            )}
+            <Text 
+              style={styles.modalText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {option.label}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+  };
 
   return (
     <View style={[styles.dropdownContainer, { width }]}>
@@ -107,13 +236,7 @@ const Dropdown: React.FC<DropdownProps> = ({
           style={[styles.dropdownButton, { height }]}
           onPress={() => setModalVisible(true)}
         >
-          <Text 
-            style={[styles.dropdownText, { color: textColor }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {selectedValue}
-          </Text>
+          {renderSelectedValue()}
         </TouchableOpacity>
       </View>
       <Modal
@@ -136,30 +259,9 @@ const Dropdown: React.FC<DropdownProps> = ({
                   style={styles.modalScrollContainer}
                   scrollEnabled={isScrollable}
                 >
-                  {options.map((option, index) => {
+                  {Array.isArray(options) && options.map((option, index) => {
                     const isLast = index === options.length - 1;
-                    return (
-                      <TouchableOpacity
-                        key={option}
-                        style={[
-                          styles.modalItem,
-                          { height: optionHeight },
-                          isLast && { borderBottomWidth: 0 },
-                        ]}
-                        onPress={() => {
-                          onSelect(option);
-                          setModalVisible(false);
-                        }}
-                      >
-                        <Text 
-                          style={styles.modalText}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {option}
-                        </Text>
-                      </TouchableOpacity>
-                    );
+                    return renderOption(option, index, isLast);
                   })}
                 </ScrollView>
               </View>

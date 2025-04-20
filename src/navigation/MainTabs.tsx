@@ -4,6 +4,7 @@ import { TabParamList } from '@src/types/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
 import BillsStack from './stacks/BillsStack';
 import ProfileScreen from '@src/screens/ProfileScreen';
+import MyBillsStack from './stacks/MyBillsStack';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -22,6 +23,16 @@ export default function MainTabs() {
           title: 'Bills',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="description" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="MyBillsStack"
+        component={MyBillsStack}
+        options={{
+          title: 'My Bills',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="save" size={size} color={color} />
           ),
         }}
       />

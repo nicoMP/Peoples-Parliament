@@ -22,6 +22,7 @@ interface DropdownProps {
   maxHeight?: number;
   isTextLike?: boolean;
   showIconOnly?: boolean;
+  disabled?: boolean;
 }
 
 const Dropdown: React.FC<DropdownProps> = ({ 
@@ -35,7 +36,8 @@ const Dropdown: React.FC<DropdownProps> = ({
   maxWidth,
   maxHeight,
   isTextLike = false,
-  showIconOnly = false
+  showIconOnly = false,
+  disabled = false
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -83,12 +85,19 @@ const Dropdown: React.FC<DropdownProps> = ({
       height: isTextLike ? 'auto' : height,
       marginHorizontal: 0,
     },
+    disabledButton: {
+      opacity: 0.6,
+      backgroundColor: isTextLike ? 'transparent' : '#f0f0f0',
+    },
     dropdownText: {
       fontSize: 14,
       fontWeight: '500',
-      textAlign: 'center',
+      textAlign: isTextLike ? 'left' : 'center',
       width: '100%',
       color: textColor,
+    },
+    disabledText: {
+      color: '#999',
     },
     dropdownIcon: {
       marginRight: showIconOnly ? 0 : 8,
@@ -140,12 +149,16 @@ const Dropdown: React.FC<DropdownProps> = ({
           <MaterialIcons 
             name={selectedOption.icon} 
             size={20} 
-            color={selectedOption.iconColor || textColor}
+            color={disabled ? '#999' : (selectedOption.iconColor || textColor)}
             style={styles.dropdownIcon}
           />
           {!showIconOnly && (
             <Text 
-              style={[styles.dropdownText, { color: textColor }]}
+              style={[
+                styles.dropdownText, 
+                { color: disabled ? '#999' : textColor },
+                disabled && styles.disabledText
+              ]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -157,7 +170,11 @@ const Dropdown: React.FC<DropdownProps> = ({
     } else {
       return (
         <Text 
-          style={[styles.dropdownText, { color: textColor }]}
+          style={[
+            styles.dropdownText, 
+            { color: disabled ? '#999' : textColor },
+            disabled && styles.disabledText
+          ]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -233,8 +250,13 @@ const Dropdown: React.FC<DropdownProps> = ({
       <View style={styles.row}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
         <TouchableOpacity
-          style={[styles.dropdownButton, { height }]}
-          onPress={() => setModalVisible(true)}
+          style={[
+            styles.dropdownButton, 
+            { height },
+            disabled && styles.disabledButton
+          ]}
+          onPress={() => !disabled && setModalVisible(true)}
+          disabled={disabled}
         >
           {renderSelectedValue()}
         </TouchableOpacity>

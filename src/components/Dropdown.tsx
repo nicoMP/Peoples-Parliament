@@ -28,6 +28,7 @@ interface DropdownProps {
   textColor?: string;
   showIconOnly?: boolean;
   isTextLike?: boolean;
+  disabled?: boolean;
 }
 
 const Dropdown: React.FC<DropdownProps> = ({
@@ -40,7 +41,8 @@ const Dropdown: React.FC<DropdownProps> = ({
   maxWidth,
   textColor = '#333',
   showIconOnly = false,
-  isTextLike = false
+  isTextLike = false,
+  disabled = false
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
   
@@ -70,22 +72,27 @@ const Dropdown: React.FC<DropdownProps> = ({
         style={[
           styles.selector,
           isTextLike ? styles.textLikeSelector : null,
-          { width, height, borderColor: textColor }
+          { width, height, borderColor: textColor },
+          disabled ? styles.disabledSelector : null
         ]}
-        onPress={() => setModalVisible(true)}
+        onPress={() => !disabled && setModalVisible(true)}
+        disabled={disabled}
       >
         {selectedOption?.icon && !showIconOnly ? (
           <MaterialIcons
             name={selectedOption.icon as any}
             size={18}
-            color={selectedOption.iconColor || textColor}
+            color={disabled ? '#999' : (selectedOption.iconColor || textColor)}
             style={styles.icon}
           />
         ) : null}
         
         {!showIconOnly && (
           <Text 
-            style={[styles.selectedText, { color: textColor }]}
+            style={[
+              styles.selectedText, 
+              { color: disabled ? '#999' : textColor }
+            ]}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
@@ -97,14 +104,14 @@ const Dropdown: React.FC<DropdownProps> = ({
           <MaterialIcons
             name={selectedOption.icon as any}
             size={22}
-            color={selectedOption.iconColor || textColor}
+            color={disabled ? '#999' : (selectedOption.iconColor || textColor)}
           />
         )}
         
         <MaterialIcons
           name="arrow-drop-down"
           size={24}
-          color={textColor}
+          color={disabled ? '#999' : textColor}
         />
       </TouchableOpacity>
       
@@ -185,6 +192,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     paddingHorizontal: 0,
+  },
+  disabledSelector: {
+    opacity: 0.6,
   },
   selectedText: {
     flex: 1,

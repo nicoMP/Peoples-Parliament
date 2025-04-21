@@ -68,6 +68,7 @@ interface BillFilterBarProps {
   onStatusFilterChange?: (filter: StatusFilter) => void;
   showStatusFilter?: boolean;
   disableSafeArea?: boolean;
+  allowEmptySelection?: boolean;
 }
 
 export default function BillFilterBar({
@@ -92,6 +93,7 @@ export default function BillFilterBar({
   onStatusFilterChange = () => {},
   showStatusFilter = false,
   disableSafeArea = false,
+  allowEmptySelection = false,
 }: BillFilterBarProps) {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -112,6 +114,11 @@ export default function BillFilterBar({
   }, [parliament]);
 
   const fetchBills = useCallback(async (forceRefresh = false) => {
+    if (!parliament || !session) {
+      onLoadingChange(false);
+      return;
+    }
+
     if (!forceRefresh && !hasMore) return;
     onLoadingChange(true);
 
@@ -173,14 +180,30 @@ export default function BillFilterBar({
   }, [fetchBills, onBillsChange]);
 
   useEffect(() => {
+    // Skip API calls when either parliament or session is empty
+    if (!parliament || !session) {
+      // Still need to reset pagination and bills, but don't trigger a fetch
+      setPage(1);
+      setHasMore(true);
+      onBillsChange([]);
+      return;
+    }
+
+    // Reset pagination when parliament or session changes
     setPage(1);
     setHasMore(true);
     onBillsChange([]);
   }, [parliament, session, onBillsChange]);
 
   useEffect(() => {
-    fetchBills();
-  }, [page, fetchBills]);
+    // Fetch bills when page changes or the component mounts
+    if (parliament && session) {
+      fetchBills();
+    } else {
+      // For MyBillsScreen, make sure loading state is reset
+      onLoadingChange(false);
+    }
+  }, [page, fetchBills, parliament, session]);
 
   useEffect(() => {
     const loadSessionDates = () => {
@@ -303,9 +326,12 @@ export default function BillFilterBar({
               <View style={styles.numberContainer}>
                 <Dropdown
                   label=""
-                  options={parliaments}
-                  selectedValue={parliament}
-                  onSelect={onParliamentChange}
+                  options={allowEmptySelection ? ['All', ...parliaments] : parliaments}
+                  selectedValue={parliament || (allowEmptySelection ? 'All' : '44')}
+                  onSelect={(value) => {
+                    const newValue = value === 'All' ? '' : value;
+                    onParliamentChange(newValue);
+                  }}
                   textColor="#b22234"
                   width={40}
                   height={36}
@@ -317,14 +343,18 @@ export default function BillFilterBar({
               <View style={styles.numberContainer}>
                 <Dropdown
                   label=""
-                  options={selectedParliamentSessions.map((s) => s.session.toString())}
-                  selectedValue={session}
-                  onSelect={onSessionChange}
+                  options={allowEmptySelection ? ['All', ...selectedParliamentSessions.map((s) => s.session.toString())] : selectedParliamentSessions.map((s) => s.session.toString())}
+                  selectedValue={session || (allowEmptySelection ? 'All' : '1')}
+                  onSelect={(value) => {
+                    const newValue = value === 'All' ? '' : value;
+                    onSessionChange(newValue);
+                  }}
                   textColor="#b22234"
                   width={40}
                   height={36}
                   maxWidth={60}
                   isTextLike={true}
+                  disabled={!parliament}
                 />
               </View>
             </View>
@@ -490,7 +520,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     height: 48,
     width: '100%',
   },
@@ -501,7 +531,7 @@ const styles = StyleSheet.create({
   parliamentControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 4,
   },
   headerText: {
@@ -512,7 +542,7 @@ const styles = StyleSheet.create({
   },
   numberContainer: {
     width: 40,
-    marginRight: 0,
+    marginRight: 8,
     marginLeft: 0,
   },
   actionsContainer: {
@@ -732,5 +762,14 @@ const styles = StyleSheet.create({
   },
   statusDropdownWrapper: {
     justifyContent: 'flex-end',
+  },
+  inactiveDropdown: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inactiveDropdownText: {
+    fontSize: 14,
+    color: '#666',
   },
 }); 

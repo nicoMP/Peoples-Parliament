@@ -202,6 +202,7 @@ export default function BillCarousel() {
         onDateFilterChange={handleDateFilterChange}
         onDateFieldChange={handleDateFieldChange}
         onDateSortChange={handleDateSortChange}
+        allowEmptySelection={false}
       />
       <View style={styles.listWrapper}>
         <FlatList

@@ -28,6 +28,8 @@ export default function MyBillsScreen() {
   const [dateField, setDateField] = useState<DateField>('LatestActivityDateTime');
   const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
   const [sortBy, setSortBy] = useState<SortBy>('date');
+  const [parliamentFilter, setParliamentFilter] = useState<string>('');
+  const [sessionFilter, setSessionFilter] = useState<string>('');
   const pdfService = BillPdfService.getInstance();
   const filterService = BillFilterService.getInstance();
 
@@ -44,13 +46,12 @@ export default function MyBillsScreen() {
     }
   };
 
-  // Filter bills using the shared service
   const filteredBills = useMemo(() => {
     const lastInteractionDays = dateFilter === 'all' ? undefined : 
                               dateFilter === 'custom' ? undefined : 
                               parseInt(dateFilter);
     
-    return filterService.filterSavedBills(bills, {
+    let filtered = filterService.filterSavedBills(bills, {
       searchText,
       statusFilter,
       startDate,
@@ -60,9 +61,30 @@ export default function MyBillsScreen() {
       dateField,
       sortOrder: dateSortOrder
     });
-  }, [bills, searchText, statusFilter, dateFilter, startDate, endDate, sortBy, dateField, dateSortOrder]);
+    
+    if (parliamentFilter) {
+      filtered = filtered.filter(bill => bill.parliament === parliamentFilter);
+    }
+    
+    if (parliamentFilter && sessionFilter) {
+      filtered = filtered.filter(bill => bill.session === sessionFilter);
+    }
+    
+    return filtered;
+  }, [
+    bills, 
+    searchText, 
+    statusFilter, 
+    dateFilter, 
+    startDate, 
+    endDate, 
+    sortBy, 
+    dateField, 
+    dateSortOrder, 
+    parliamentFilter, 
+    sessionFilter
+  ]);
 
-  // Load bills when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadBills();
@@ -75,6 +97,17 @@ export default function MyBillsScreen() {
     setRefreshing(false);
   };
 
+  const handleParliamentChange = (value: string) => {
+    setParliamentFilter(value);
+    if (value !== parliamentFilter) {
+      setSessionFilter('');
+    }
+  };
+
+  const handleSessionChange = (value: string) => {
+    setSessionFilter(value);
+  };
+
   const handleToggleWatch = async (bill: SavedBill) => {
     try {
       if (bill.isWatching) {
@@ -82,7 +115,6 @@ export default function MyBillsScreen() {
       } else {
         await pdfService.watchBill(bill.parliament, bill.session, bill.billNumber);
       }
-      // Refresh the list
       loadBills();
     } catch (error) {
       console.error('Error toggling watch status:', error);
@@ -134,7 +166,6 @@ export default function MyBillsScreen() {
           onPress: async () => {
             try {
               await pdfService.deleteBill(bill.parliament, bill.session, bill.billNumber);
-              // Refresh the list
               loadBills();
             } catch (error) {
               console.error('Error deleting bill:', error);
@@ -154,7 +185,7 @@ export default function MyBillsScreen() {
 
   const handleDateFieldChange = useCallback((field: string) => {
     setDateField(field as DateField);
-    setSortBy('date'); // When changing date field, set sort mode to date
+    setSortBy('date');
   }, []);
 
   const handleDateSortChange = useCallback((order: 'asc' | 'desc') => {
@@ -186,6 +217,10 @@ export default function MyBillsScreen() {
   return (
     <View style={[styles.container, { paddingTop: StatusBar.currentHeight || 0 }]}>
       <BillFilterBar 
+        parliament={parliamentFilter}
+        session={sessionFilter}
+        onParliamentChange={handleParliamentChange}
+        onSessionChange={handleSessionChange}
         onBillsChange={() => {}}
         onLoadingChange={() => {}}
         searchText={searchText}
@@ -199,6 +234,7 @@ export default function MyBillsScreen() {
         onDateFieldChange={handleDateFieldChange}
         onDateSortChange={handleDateSortChange}
         disableSafeArea={true}
+        allowEmptySelection={true}
       />
 
       <FlatList

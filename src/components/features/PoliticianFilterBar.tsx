@@ -207,46 +207,6 @@ function PoliticianFilterBar({
     return filters;
   }, [searchText, selectedParty, selectedProvince, includeOption, watchedFilter]);
 
-  // Efficiently apply filters only when they change
-  useEffect(() => {
-    // Skip if filters are already being applied or haven't changed
-    if (isFilterChangingRef.current) return;
-    
-    // Use filter service to compare filters
-    const hasChanged = !filterService.areFiltersEqual(currentFilters, lastAppliedFiltersRef.current);
-    
-    if (hasChanged) {
-      console.log('PoliticianFilterBar: Filters changed, applying new filters');
-      // Set flag to prevent additional calls during filter application
-      isFilterChangingRef.current = true;
-      
-      // Apply filters with batch update for better performance
-      onApplyFilters(currentFilters);
-      
-      // Also call the dedicated callback if the watched filter changed
-      const wasWatched = 'watched_only' in lastAppliedFiltersRef.current;
-      const isWatched = 'watched_only' in currentFilters;
-      
-      if (wasWatched !== isWatched && onToggleWatchedOnly) {
-        onToggleWatchedOnly();
-      }
-      
-      // Update last applied filters reference
-      lastAppliedFiltersRef.current = { ...currentFilters };
-      
-      // Allow new filters to be applied again after a short delay
-      setTimeout(() => {
-        isFilterChangingRef.current = false;
-      }, 50);
-    }
-  }, [currentFilters, onApplyFilters, onToggleWatchedOnly, filterService]);
-
-  // Make the refresh more explicit by adding a message
-  const handleRefresh = useCallback(() => {
-    console.log('Explicitly refreshing politicians from API');
-    onRefresh();
-  }, [onRefresh]);
-  
   // Handle the watch toggle - direct filter component with no parent dependency
   const handleWatchedToggle = useCallback(() => {
     console.log(`Toggling watched only from ${watchedFilter} to ${!watchedFilter}`);
@@ -255,7 +215,7 @@ function PoliticianFilterBar({
     const newWatchedState = !watchedFilter;
     setWatchedFilter(newWatchedState);
     
-    // Apply the filter directly for immediate effect, ensuring newly watched politicians are included
+    // Apply the filter changes
     const watchFilter: PoliticianFilters = {};
     
     // Include existing filters
@@ -276,10 +236,74 @@ function PoliticianFilterBar({
     if (onToggleWatchedOnly) {
       onToggleWatchedOnly();
     }
-    
-    // The filter will also be applied via the useEffect watching currentFilters
   }, [watchedFilter, searchText, selectedParty, selectedProvince, includeOption, onApplyFilters, onToggleWatchedOnly]);
 
+  // Efficiently apply filters only when they change
+  useEffect(() => {
+    // Skip if filters are already being applied or haven't changed
+    if (isFilterChangingRef.current) return;
+    
+    // Use filter service to compare filters
+    const hasChanged = !filterService.areFiltersEqual(currentFilters, lastAppliedFiltersRef.current);
+    
+    if (hasChanged) {
+      console.log('PoliticianFilterBar: Filters changed, applying new filters');
+      // Set flag to prevent additional calls during filter application
+      isFilterChangingRef.current = true;
+      
+      // Only apply filters if they're not just a watched change
+      // This prevents position changes when starring/unstarring
+      const isOnlyWatchedChange = (): boolean => {
+        // First, check if both objects have the same number of keys
+        const currentKeys = Object.keys(currentFilters);
+        const prevKeys = Object.keys(lastAppliedFiltersRef.current);
+        
+        if (currentKeys.length !== prevKeys.length) {
+          return false;
+        }
+        
+        // Then check if only the watched_only property has changed
+        return currentKeys.every(key => {
+          if (key === 'watched_only') {
+            return true; // Skip comparing watched_only since we're checking if ONLY that changed
+          }
+          
+          // Type-safe way to check if other properties match
+          if (key === 'name') {
+            return currentFilters.name === lastAppliedFiltersRef.current.name;
+          } else if (key === 'party') {
+            return currentFilters.party === lastAppliedFiltersRef.current.party;
+          } else if (key === 'province') {
+            return currentFilters.province === lastAppliedFiltersRef.current.province;
+          } else if (key === 'include') {
+            return currentFilters.include === lastAppliedFiltersRef.current.include;
+          }
+          
+          return true;
+        });
+      };
+      
+      if (!isOnlyWatchedChange()) {
+        // Apply filters with batch update for better performance
+        onApplyFilters(currentFilters);
+      }
+      
+      // Update last applied filters reference
+      lastAppliedFiltersRef.current = { ...currentFilters };
+      
+      // Allow new filters to be applied again after a short delay
+      setTimeout(() => {
+        isFilterChangingRef.current = false;
+      }, 50);
+    }
+  }, [currentFilters, onApplyFilters, onToggleWatchedOnly, filterService]);
+
+  // Make the refresh more explicit by adding a message
+  const handleRefresh = useCallback(() => {
+    console.log('Explicitly refreshing politicians from API');
+    onRefresh();
+  }, [onRefresh]);
+  
   // Optimized filter reset that batches state updates
   const handleResetFilters = useCallback(() => {
     // Batch all state updates together for better performance

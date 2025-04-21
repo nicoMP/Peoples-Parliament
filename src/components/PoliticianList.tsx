@@ -338,15 +338,17 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
   // Local toggle function - optimized
   const handleLocalToggleWatch = useCallback(async (politician: Politician) => {
     try {
+      if (!politician?.url) {
+        console.error('Cannot toggle watch status: politician missing URL');
+        return;
+      }
+
       const isCurrentlyWatched = politician.isWatching === true;
       const newStatus = !isCurrentlyWatched;
       
-      // Create an optimistic update
-      setLocalPoliticians(prev => 
-        prev.map(p => p.url === politician.url ? { ...p, isWatching: newStatus } : p)
-      );
+      console.log(`[PoliticianList] Toggling watch for ${politician.name} from ${isCurrentlyWatched} to ${newStatus}`);
       
-      // Background database update
+      // First update the database to ensure persistence
       try {
         if (newStatus) {
           await watchedService.watchPolitician(politician);
@@ -354,21 +356,42 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
           await watchedService.unwatchPolitician(politician.url);
         }
         
-        // Call parent callback if provided (don't await)
+        // Create an updated politician object with the new watch status
+        const updatedPolitician = { ...politician, isWatching: newStatus };
+        
+        // Apply optimistic UI update
+        setLocalPoliticians(prev => {
+          // Remove the politician from the list
+          const filtered = prev.filter(p => p.url !== politician.url);
+          
+          // Add the updated version
+          const updated = [...filtered, updatedPolitician];
+          
+          // Sort the list (watched first, then alphabetically)
+          return updated.sort((a, b) => {
+            if (a.isWatching && !b.isWatching) return -1;
+            if (!a.isWatching && b.isWatching) return 1;
+            return (a.name || '').localeCompare(b.name || '');
+          });
+        });
+        
+        // If the parent provides a toggle function, call it after our local update
         if (onToggleWatch) {
-          onToggleWatch(politician).catch(error => {
-            console.error('Error in parent onToggleWatch:', error);
+          await onToggleWatch(politician).catch(err => {
+            console.error('[PoliticianList] Error in parent onToggleWatch:', err);
           });
         }
       } catch (error) {
-        console.error(`Failed to ${newStatus ? 'watch' : 'unwatch'} ${politician.name}:`, error);
-        // Revert UI on error
-        setLocalPoliticians(prev => 
-          prev.map(p => p.url === politician.url ? { ...p, isWatching: isCurrentlyWatched } : p)
+        console.error(`[PoliticianList] Failed to ${newStatus ? 'watch' : 'unwatch'} ${politician.name}:`, error);
+        // Show error to user
+        Alert.alert(
+          'Update Failed',
+          `Could not ${newStatus ? 'star' : 'unstar'} ${politician.name}. Please try again.`,
+          [{ text: 'OK' }]
         );
       }
     } catch (error) {
-      console.error('Error in local toggle watch:', error);
+      console.error('[PoliticianList] Error in local toggle watch:', error);
     }
   }, [watchedService, onToggleWatch]);
 

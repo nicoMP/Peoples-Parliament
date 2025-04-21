@@ -156,18 +156,16 @@ export class PoliticianFilterService {
   }
   
   /**
-   * Check if filters are equal (shallow comparison)
+   * Method to check if two sets of filter options are equal
    */
-  public areFiltersEqual(filters1: PoliticianFilters, filters2: PoliticianFilters): boolean {
-    const keys1 = Object.keys(filters1);
-    const keys2 = Object.keys(filters2);
-    
-    if (keys1.length !== keys2.length) return false;
-    
-    return keys1.every(key => {
-      // @ts-ignore - safe because key is from filters1
-      return filters1[key] === filters2[key];
-    });
+  public areFiltersEqual(a: PoliticianFilters, b: PoliticianFilters): boolean {
+    return (
+      a.name === b.name &&
+      a.party === b.party &&
+      a.province === b.province &&
+      a.include === b.include &&
+      a.watched_only === b.watched_only
+    );
   }
   
   /**
@@ -186,6 +184,31 @@ export class PoliticianFilterService {
         Object.keys(newFilters).length === Object.keys(oldFilters).length);
         
     return isTogglingWatchedOnly;
+  }
+  
+  /**
+   * Update a politician's position in the list when their watch status changes
+   * This method efficiently updates a single politician without refiltering the entire list
+   */
+  public updatePoliticianWatchPosition(
+    politicians: Politician[],
+    updatedPolitician: Politician,
+    options: PoliticianFilters,
+    useCurrentOnly: boolean
+  ): Politician[] {
+    // Make a copy of the politicians array to avoid mutating the original
+    let updatedList = [...politicians];
+    
+    // Remove the politician with the matching URL (old version)
+    updatedList = updatedList.filter(p => p.url !== updatedPolitician.url);
+    
+    // Add the updated politician
+    updatedList.push(updatedPolitician);
+    
+    // Re-sort the list with the updated politician
+    this.sortPoliticians(updatedList, options);
+    
+    return updatedList;
   }
 }
 

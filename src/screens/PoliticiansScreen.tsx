@@ -32,7 +32,8 @@ export default function PoliticiansScreen() {
     refreshPoliticians,
     setUseCurrentOnly: hookSetUseCurrentOnly,
     loadMore,
-    updatePoliticianDetails
+    updatePoliticianDetails,
+    togglePoliticianWatch
   } = usePoliticians();
 
   const watchedPoliticiansService = WatchedPoliticiansService.getInstance();
@@ -51,13 +52,30 @@ export default function PoliticiansScreen() {
         console.log('[updateFilteredPoliticians] Fetching ONLY watched politicians.');
         const watchedPoliticians = await watchedPoliticiansService.getAllWatchedPoliticians();
         console.log(`[updateFilteredPoliticians] Got ${watchedPoliticians.length} watched politicians.`);
-        setFilteredPoliticians(watchedPoliticians);
+        
+        // Sort watched politicians alphabetically
+        const sortedWatched = [...watchedPoliticians].sort((a, b) => 
+          (a.name || '').localeCompare(b.name || '')
+        );
+        
+        setFilteredPoliticians(sortedWatched);
       } else {
         console.log('[updateFilteredPoliticians] Fetching main list and updating watch status.');
         if (politicians.length > 0) {
           const updatedPoliticians = await watchedPoliticiansService.updateWatchStatusInList(politicians);
           console.log(`[updateFilteredPoliticians] Updated ${updatedPoliticians.length} politicians with watch status.`);
-          setFilteredPoliticians(updatedPoliticians);
+          
+          // Sort politicians with watched ones at the top
+          const sortedPoliticians = [...updatedPoliticians].sort((a, b) => {
+            // First sort by watch status (watched politicians first)
+            if (a.isWatching && !b.isWatching) return -1;
+            if (!a.isWatching && b.isWatching) return 1;
+            
+            // Then sort alphabetically by name
+            return (a.name || '').localeCompare(b.name || '');
+          });
+          
+          setFilteredPoliticians(sortedPoliticians);
         } else {
           console.log('[updateFilteredPoliticians] Main politicians list is empty, setting filtered list to empty.');
           setFilteredPoliticians([]);
@@ -191,41 +209,89 @@ export default function PoliticiansScreen() {
     applyFilters(newFilters);
   }, [includeOption, hookSetUseCurrentOnly, searchText, partyFilter, provinceFilter, applyFilters]);
 
-  // Handle watch toggling - now with details update
+  // Handle watch toggling with efficient updates
   const handleToggleWatch = useCallback(async (politician: Politician) => {
-    console.log(`[handleToggleWatch] Called for: ${politician.name} (${politician.url}). Current showWatchedOnly=${showWatchedOnly}`);
+    console.log(`[PoliticiansScreen] Toggle watch called for: ${politician.name}`);
+    
     try {
-      // Check if we need to fetch detailed info first - use the hasFullDetails property if available
+      // First check if we need to fetch detailed information
       const politicianWithStatus = politician as (Politician & { hasFullDetails?: boolean });
       const hasDetails = politicianWithStatus.hasFullDetails === true || 
         politician.email || politician.voice || politician.links || politician.memberships;
         
       if (!hasDetails) {
-        console.log(`Fetching details for ${politician.name} before toggling watch status`);
+        console.log(`[PoliticiansScreen] Fetching details for ${politician.name} before toggling watch status`);
         const detailedPolitician = await updatePoliticianDetails(politician);
         if (detailedPolitician) {
           politician = detailedPolitician;
         }
       }
       
-      const isWatching = await watchedPoliticiansService.isWatchingPolitician(politician.url);
-      console.log(`[handleToggleWatch] ${politician.name} is currently watched: ${isWatching}`);
-
-      if (isWatching) {
-        console.log(`[handleToggleWatch] Unwatching ${politician.name}`);
-        await watchedPoliticiansService.unwatchPolitician(politician.url);
-      } else {
-        console.log(`[handleToggleWatch] Watching ${politician.name}`);
-        await watchedPoliticiansService.watchPolitician(politician);
+      // Check if we have the optimized togglePoliticianWatch function from usePoliticians
+      if (togglePoliticianWatch) {
+        console.log(`[PoliticiansScreen] Using optimized togglePoliticianWatch for ${politician.name}`);
+        await togglePoliticianWatch(politician);
+        return;
       }
-
-      console.log(`[handleToggleWatch] DB update complete. Calling updateFilteredPoliticians to refresh list.`);
-      // Update filtered politicians explicitly after DB change
-      await updateFilteredPoliticians(); 
+      
+      // Fallback to manual updating if the hook doesn't provide togglePoliticianWatch
+      const isWatching = await watchedPoliticiansService.isWatchingPolitician(politician.url);
+      const newWatchStatus = !isWatching;
+      
+      // First update database
+      if (newWatchStatus) {
+        await watchedPoliticiansService.watchPolitician(politician);
+      } else {
+        await watchedPoliticiansService.unwatchPolitician(politician.url);
+      }
+      
+      // Create updated politician object
+      const updatedPolitician = {
+        ...politician,
+        isWatching: newWatchStatus
+      };
+      
+      // Handle watched-only filter mode
+      if (showWatchedOnly) {
+        if (!newWatchStatus) {
+          // If we're in watched-only mode and unwatching, remove from list immediately
+          setFilteredPoliticians(prev => prev.filter(p => p.url !== politician.url));
+        } else {
+          // In watched-only mode, ensure list is still alphabetically sorted
+          setFilteredPoliticians(prev => {
+            const newList = [...prev, updatedPolitician];
+            return newList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          });
+        }
+      } else {
+        // In regular mode, update the position efficiently using PoliticianFilterService
+        // Create a filters object with current filter settings
+        const currentFilters: PoliticianFilters = {
+          name: searchText || undefined,
+          party: partyFilter || undefined,
+          province: provinceFilter || undefined,
+          include: (!useCurrentOnly && includeOption) ? includeOption as 'former' | 'all' : undefined,
+          watched_only: showWatchedOnly || undefined
+        };
+        setFilteredPoliticians(prev => {
+          return filterService.updatePoliticianWatchPosition(prev, updatedPolitician, currentFilters, useCurrentOnly);
+        });
+      }
     } catch (error) {
-      console.error('[handleToggleWatch] Error toggling watch status:', error);
+      console.error('[PoliticiansScreen] Error in handleToggleWatch:', error);
     }
-  }, [watchedPoliticiansService, updateFilteredPoliticians, showWatchedOnly, updatePoliticianDetails]);
+  }, [
+    watchedPoliticiansService, 
+    showWatchedOnly, 
+    updatePoliticianDetails, 
+    togglePoliticianWatch, 
+    useCurrentOnly, 
+    searchText, 
+    partyFilter, 
+    provinceFilter, 
+    includeOption,
+    filterService
+  ]);
 
   // Handle navigation to details - fetch details if needed
   const handleNavigateToDetails = useCallback(async (politician: Politician) => {

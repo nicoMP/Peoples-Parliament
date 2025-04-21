@@ -27,6 +27,7 @@ interface UsePoliticiansResult {
   setUseCurrentOnly: (value: boolean) => void;
   applyFilters: (newFilters: PoliticianFilters) => void;
   updatePoliticianDetails: (politician: Politician) => Promise<Politician | null>;
+  togglePoliticianWatch: (politician: Politician) => Promise<void>;
 }
 
 // Maximum number of politicians to fetch in one request
@@ -470,6 +471,68 @@ export function usePoliticians(
     }
   }, [checkForCompleteDetails]);
 
+  /**
+   * Function to efficiently toggle watch status for a politician without resorting the entire list
+   */
+  const togglePoliticianWatch = useCallback(async (politician: Politician) => {
+    if (!politician?.url) {
+      console.error('Cannot toggle watch for politician without URL');
+      return;
+    }
+    
+    // Get current watch status
+    const wasWatched = !!politician.isWatching;
+    const newWatchStatus = !wasWatched;
+    
+    console.log(`[usePoliticians] Toggling watch status for ${politician.name} from ${wasWatched} to ${newWatchStatus}`);
+    
+    try {
+      // Update the database first
+      if (newWatchStatus) {
+        await watchedService.watchPolitician(politician);
+      } else {
+        await watchedService.unwatchPolitician(politician.url);
+      }
+      
+      // Create updated politician object with new status
+      const updatedPolitician: Politician = {
+        ...politician,
+        isWatching: newWatchStatus
+      };
+      
+      // Efficiently update the position in the list using our specialized method
+      const updatedList = filterService.updatePoliticianWatchPosition(
+        allPoliticians, 
+        updatedPolitician, 
+        filters,
+        useCurrentOnly
+      );
+      
+      // Update the full list
+      setAllPoliticians(updatedList);
+      
+      // If we're showing a filtered list with the watched_only filter, 
+      // we need special handling to maintain UI consistency
+      if ('watched_only' in filters && filters.watched_only) {
+        if (!newWatchStatus) {
+          // If unwatching while in watched_only mode, remove from displayed list
+          setDisplayedPoliticians(prev => prev.filter(p => p.url !== politician.url));
+        }
+      } else {
+        // For other filters, update the displayed politician's position efficiently
+        const updatedDisplayed = filterService.updatePoliticianWatchPosition(
+          displayedPoliticians, 
+          updatedPolitician, 
+          filters,
+          useCurrentOnly
+        );
+        setDisplayedPoliticians(updatedDisplayed);
+      }
+    } catch (error) {
+      console.error(`[usePoliticians] Error toggling watch status for ${politician.name}:`, error);
+    }
+  }, [allPoliticians, displayedPoliticians, filters, watchedService, filterService, useCurrentOnly]);
+
   return {
     politicians: displayedPoliticians,
     hasMorePages,
@@ -486,7 +549,8 @@ export function usePoliticians(
     useCurrentOnly,
     setUseCurrentOnly,
     applyFilters: applyFilterObj,
-    updatePoliticianDetails
+    updatePoliticianDetails,
+    togglePoliticianWatch
   };
 }
 

@@ -6,6 +6,7 @@ import Dropdown from '../Dropdown';
 import SearchBar from '../common/SearchBar';
 import { PoliticianFilters } from '../../types/parliament';
 import { WatchedPoliticiansService } from '../../services/WatchedPoliticiansService';
+import PoliticianFilterService from '../../services/filters/PoliticianFilterService';
 
 // Common parties for filter dropdown
 const COMMON_PARTIES = [
@@ -138,6 +139,7 @@ function PoliticianFilterBar({
   onToggleWatchedOnly,
 }: PoliticianFilterBarProps) {
   const insets = useSafeAreaInsets();
+  const filterService = PoliticianFilterService.getInstance();
   
   // State
   const [searchText, setSearchText] = useState<string>(initialSearchText);
@@ -210,8 +212,8 @@ function PoliticianFilterBar({
     // Skip if filters are already being applied or haven't changed
     if (isFilterChangingRef.current) return;
     
-    // Fast shallow comparison of filter objects
-    const hasChanged = JSON.stringify(currentFilters) !== JSON.stringify(lastAppliedFiltersRef.current);
+    // Use filter service to compare filters
+    const hasChanged = !filterService.areFiltersEqual(currentFilters, lastAppliedFiltersRef.current);
     
     if (hasChanged) {
       console.log('PoliticianFilterBar: Filters changed, applying new filters');
@@ -237,7 +239,7 @@ function PoliticianFilterBar({
         isFilterChangingRef.current = false;
       }, 50);
     }
-  }, [currentFilters, onApplyFilters, onToggleWatchedOnly]);
+  }, [currentFilters, onApplyFilters, onToggleWatchedOnly, filterService]);
 
   // Make the refresh more explicit by adding a message
   const handleRefresh = useCallback(() => {
@@ -531,7 +533,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 4,
-    marginBottom: 8,
+    marginVertical: 3,
     width: '90%',
     maxWidth: 800,
   },

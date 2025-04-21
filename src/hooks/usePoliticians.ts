@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchPoliticians } from '../services/parliamentService';
+import { fetchPoliticians, fetchPoliticianDetails } from '../services/parliamentService';
 import { Politician, PoliticianFilters, PoliticianResponse } from '../types/parliament';
 import { isPoliticiansCacheStale } from '../services/CachePoliticiansService';
 import { WatchedPoliticiansService } from '../services/WatchedPoliticiansService';
+import PoliticianFilterService from '../services/filters/PoliticianFilterService';
 
+// New interface to track detailed loading status
+interface PoliticianWithLoadStatus extends Politician {
+  hasFullDetails?: boolean;
+}
+
+// Interface to expose from the hook
 interface UsePoliticiansResult {
-  politicians: Politician[];
+  politicians: PoliticianWithLoadStatus[];
   loading: boolean; // Represents initial loading or background refresh
   refreshing: boolean; // Explicit user pull-to-refresh
   error: Error | null;
@@ -19,6 +26,7 @@ interface UsePoliticiansResult {
   useCurrentOnly: boolean;
   setUseCurrentOnly: (value: boolean) => void;
   applyFilters: (newFilters: PoliticianFilters) => void;
+  updatePoliticianDetails: (politician: Politician) => Promise<Politician | null>;
 }
 
 // Maximum number of politicians to fetch in one request
@@ -31,132 +39,6 @@ const DEFAULT_WATCHED_NAMES = [
 ];
 
 /**
- * Politician Filter Service - Similar to BillFilterService for consistency
- */
-class PoliticianFilterService {
-  private static instance: PoliticianFilterService;
-
-  private constructor() {}
-
-  public static getInstance(): PoliticianFilterService {
-    if (!PoliticianFilterService.instance) {
-      PoliticianFilterService.instance = new PoliticianFilterService();
-    }
-    return PoliticianFilterService.instance;
-  }
-
-  /**
-   * Filter politicians based on provided options
-   */
-  public filterPoliticians(politicians: Politician[], options: PoliticianFilters, useCurrentOnly: boolean): Politician[] {
-    console.log(`[PoliticianFilterService] Filtering ${politicians.length} politicians with options:`, options);
-    
-    // Return early if no politicians
-    if (politicians.length === 0) return [];
-    
-    // Create a new array to avoid mutating the original
-    let filtered = [...politicians];
-    
-    // Apply watched_only filter - takes precedence if set
-    if (options.watched_only) {
-      filtered = filtered.filter(p => p.isWatching === true);
-      console.log(`[PoliticianFilterService] After watched_only filter: ${filtered.length} politicians`);
-    } else {
-      // Apply current MPs filter if needed
-      if (useCurrentOnly) {
-        filtered = filtered.filter(p => p.current_riding && p.current_party);
-        console.log(`[PoliticianFilterService] After current-only filter: ${filtered.length} politicians`);
-      } else if (options.include === 'former') {
-        // Only former MPs
-        filtered = filtered.filter(p => !(p.current_riding && p.current_party));
-        console.log(`[PoliticianFilterService] After former-only filter: ${filtered.length} politicians`);
-      }
-      
-      // Apply name filter
-      if (options.name) {
-        const lowercaseName = options.name.toLowerCase();
-        filtered = filtered.filter(p => 
-          (p.name && p.name.toLowerCase().includes(lowercaseName)) ||
-          (p.family_name && p.family_name.toLowerCase().includes(lowercaseName)) ||
-          (p.given_name && p.given_name.toLowerCase().includes(lowercaseName))
-        );
-        console.log(`[PoliticianFilterService] After name filter: ${filtered.length} politicians`);
-      }
-      
-      // Apply party filter
-      if (options.party) {
-        const lowercaseParty = options.party.toLowerCase();
-        filtered = filtered.filter(p => {
-          const currentPartyShortName = p.current_party?.short_name?.en?.toLowerCase();
-          const membershipParties = p.memberships?.some(m => 
-            (m.party?.short_name?.en && m.party.short_name.en.toLowerCase().includes(lowercaseParty)) ||
-            (m.party?.name?.en && m.party.name.en.toLowerCase().includes(lowercaseParty))
-          );
-          return (currentPartyShortName && currentPartyShortName.includes(lowercaseParty)) || 
-                membershipParties === true;
-        });
-        console.log(`[PoliticianFilterService] After party filter: ${filtered.length} politicians`);
-      }
-      
-      // Apply province filter
-      if (options.province) {
-        const lowercaseProvince = options.province.toLowerCase();
-        filtered = filtered.filter(p => 
-          p.current_riding?.province?.toLowerCase() === lowercaseProvince
-        );
-        console.log(`[PoliticianFilterService] After province filter: ${filtered.length} politicians`);
-      }
-    }
-    
-    // Sort politicians by watched status first, then alphabetically
-    filtered.sort((a, b) => {
-      // First sort by watch status (watched politicians first)
-      if (a.isWatching && !b.isWatching) return -1;
-      if (!a.isWatching && b.isWatching) return 1;
-      
-      // Then sort alphabetically by name
-      return (a.name || '').localeCompare(b.name || '');
-    });
-    
-    console.log(`[PoliticianFilterService] Final sorted list has ${filtered.length} politicians`);
-    return filtered;
-  }
-  
-  /**
-   * Check if filters are equal (shallow comparison)
-   */
-  public areFiltersEqual(filters1: PoliticianFilters, filters2: PoliticianFilters): boolean {
-    const keys1 = Object.keys(filters1);
-    const keys2 = Object.keys(filters2);
-    
-    if (keys1.length !== keys2.length) return false;
-    
-    return keys1.every(key => {
-      // @ts-ignore - safe because key is from filters1
-      return filters1[key] === filters2[key];
-    });
-  }
-  
-  /**
-   * Check if this is only a watched_only toggle
-   */
-  public isWatchedOnlyToggle(newFilters: PoliticianFilters, oldFilters: PoliticianFilters): boolean {
-    const keys1 = Object.keys(newFilters);
-    const keys2 = Object.keys(oldFilters);
-    
-    // Special case: toggling watched_only on and off
-    const isTogglingWatchedOnly = 
-      (keys1.length === 1 && keys1[0] === 'watched_only' && keys2.length === 0) || 
-      (keys2.length === 1 && keys2[0] === 'watched_only' && keys1.length === 0) ||
-      (keys1.includes('watched_only') && keys2.includes('watched_only') && 
-        newFilters.watched_only !== oldFilters.watched_only &&
-        Object.keys(newFilters).length === Object.keys(oldFilters).length);
-        
-    return isTogglingWatchedOnly;
-  }
-}
-
-/**
  * Hook for fetching and filtering politicians from the Parliament API
  * 
  * @param initialFilters - Initial filters to apply
@@ -166,9 +48,9 @@ export function usePoliticians(
   initialFilters: PoliticianFilters = {}
 ): UsePoliticiansResult {
   // Politicians to display (after filtering)
-  const [displayedPoliticians, setDisplayedPoliticians] = useState<Politician[]>([]);
+  const [displayedPoliticians, setDisplayedPoliticians] = useState<PoliticianWithLoadStatus[]>([]);
   // All politicians we've fetched so far (before filtering)
-  const [allPoliticians, setAllPoliticians] = useState<Politician[]>([]);
+  const [allPoliticians, setAllPoliticians] = useState<PoliticianWithLoadStatus[]>([]);
   
   // Combined loading state for initial load or background refresh
   const [loading, setLoading] = useState<boolean>(true); 
@@ -186,7 +68,7 @@ export function usePoliticians(
     ...initialFilters,
   });
 
-  // Create an instance of filter service - consistent with BillFilterService pattern
+  // Create an instance of filter service
   const filterService = useMemo(() => PoliticianFilterService.getInstance(), []);
   
   // Get instance of WatchedPoliticiansService
@@ -245,14 +127,43 @@ export function usePoliticians(
 
 }, [watchedService]);
   
-  // Fetch politicians from API or Cache
+  /**
+   * Check if a politician has complete details
+   */
+  const checkForCompleteDetails = useCallback((politician: Politician): PoliticianWithLoadStatus => {
+    const hasContactInfo = !!(politician?.email || politician?.voice);
+    const hasSocials = !!(
+      politician?.other_info?.twitter_id || 
+      politician?.other_info?.wikipedia_id || 
+      politician?.links?.find(link => 
+        link?.url?.includes('facebook.com') || 
+        link?.url?.includes('twitter.com')
+      )
+    );
+    const hasMemberships = !!(politician?.memberships && politician.memberships.length > 0);
+    
+    return {
+      ...politician,
+      hasFullDetails: !!(hasContactInfo || hasSocials || hasMemberships)
+    };
+  }, []);
+  
+  /**
+   * Process a list of politicians to mark those with complete details
+   */
+  const markPoliticiansWithCompleteDetails = useCallback((politicians: Politician[]): PoliticianWithLoadStatus[] => {
+    return politicians.map(politician => checkForCompleteDetails(politician));
+  }, [checkForCompleteDetails]);
+  
+  // Fetch politicians from API or Cache - updated to mark details status
   const fetchPoliticiansData = useCallback(async (options: {
     forceRefresh?: boolean;
     skipRefresh?: boolean;
     loadMorePage?: number;
     isBackground?: boolean; // Flag for silent background fetches
+    loadDetailsCompletely?: boolean;
   } = {}) => {
-    const { forceRefresh = false, skipRefresh = false, loadMorePage, isBackground = false } = options;
+    const { forceRefresh = false, skipRefresh = false, loadMorePage, isBackground = false, loadDetailsCompletely = false } = options;
     
     // Only show loading indicator if it's NOT a background task or loadMore
     if (!isBackground && !loadMorePage) {
@@ -281,7 +192,7 @@ export function usePoliticians(
       console.log(`Fetching politicians with options:`, { forceRefresh, skipRefresh, loadMorePage, isBackground, apiFilters });
       
       // Fetch data using the parliamentService
-      const response = await fetchPoliticians(apiFilters, true, forceRefresh, skipRefresh);
+      const response = await fetchPoliticians(apiFilters, true, forceRefresh, skipRefresh, loadDetailsCompletely);
       console.log('API Response:', response ? `Got ${response.objects?.length || 0} politicians` : 'No response');
       
       if (!response?.objects) {
@@ -321,10 +232,14 @@ export function usePoliticians(
     // Apply default watches and update watch status *after* fetching
     if (fetchedPoliticians && fetchedPoliticians.length > 0) {
       const updatedList = await applyDefaultWatches(fetchedPoliticians);
-      return updatedList; // Return the list with defaults applied and status updated
+      
+      // Mark politicians with complete details
+      const markedList = markPoliticiansWithCompleteDetails(updatedList || fetchedPoliticians);
+      
+      return markedList; // Return the list with defaults applied, status updated, and details completeness marked
     }
     
-    return fetchedPoliticians; // Return original (possibly null) if fetch failed or was empty
+    return fetchedPoliticians ? markPoliticiansWithCompleteDetails(fetchedPoliticians) : null;
 
   }, [
     filters.name, 
@@ -333,7 +248,8 @@ export function usePoliticians(
     filters.include,
     useCurrentOnly,
     allPoliticians.length, // Needed for pagination calculation
-    applyDefaultWatches // Include applyDefaultWatches dependency
+    applyDefaultWatches,  // Include applyDefaultWatches dependency
+    markPoliticiansWithCompleteDetails // Include marking function
   ]);
 
   // Initial load effect
@@ -438,9 +354,10 @@ export function usePoliticians(
     setRefreshing(true);
     setPage(1); // Reset page on refresh
     
-    // fetchPoliticiansData handles applying default watches and updating status internally
-    const freshPoliticians = await fetchPoliticiansData({ forceRefresh: true });
+    // Add loadDetailsCompletely: true to force fetching detailed information including social media
+    const freshPoliticians = await fetchPoliticiansData({ forceRefresh: true, loadDetailsCompletely: true });
     if (freshPoliticians) {
+      console.log(`Refresh completed with ${freshPoliticians.length} politicians with details`);
       setAllPoliticians(freshPoliticians);
     } else {
       // Handle potential error during refresh, maybe keep old data?
@@ -512,6 +429,47 @@ export function usePoliticians(
     }
   }, [filters, allPoliticians, filterService]);
 
+  // New function to fetch and update details for a specific politician
+  const updatePoliticianDetails = useCallback(async (politician: Politician): Promise<Politician | null> => {
+    if (!politician?.url) {
+      console.error('Cannot update details for politician without URL');
+      return null;
+    }
+    
+    try {
+      console.log(`Fetching detailed information for ${politician.name}`);
+      
+      // Fetch detailed information from API
+      const detailedPolitician = await fetchPoliticianDetails(politician.url, true);
+      
+      // Preserve important fields from original politician
+      if (politician.isWatching !== undefined) {
+        detailedPolitician.isWatching = politician.isWatching;
+      }
+      
+      if (politician.cached_image && !detailedPolitician.cached_image) {
+        detailedPolitician.cached_image = politician.cached_image;
+      }
+      
+      // Mark as having full details
+      const markedPolitician = checkForCompleteDetails(detailedPolitician);
+      markedPolitician.hasFullDetails = true; // Explicitly mark as having full details
+      
+      // Update the politician in the main list
+      setAllPoliticians(prev => 
+        prev.map(p => 
+          p.url === politician.url ? markedPolitician : p
+        )
+      );
+      
+      console.log(`Successfully updated details for ${politician.name}`);
+      return markedPolitician;
+    } catch (error) {
+      console.error(`Error updating details for ${politician.name}:`, error);
+      return null;
+    }
+  }, [checkForCompleteDetails]);
+
   return {
     politicians: displayedPoliticians,
     hasMorePages,
@@ -527,7 +485,8 @@ export function usePoliticians(
     error,
     useCurrentOnly,
     setUseCurrentOnly,
-    applyFilters: applyFilterObj
+    applyFilters: applyFilterObj,
+    updatePoliticianDetails
   };
 }
 

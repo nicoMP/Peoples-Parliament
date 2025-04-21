@@ -24,6 +24,106 @@ const getPoliticianImageSource = (politician: Politician) => {
   return null;
 };
 
+/**
+ * Extract social media links from a politician object
+ * Uses the same pattern as PoliticianDetails for consistency, but with additional checks
+ */
+const extractSocialMediaLinks = (politician: Politician) => {
+  // Debug the politician object structure to see what's available
+  console.log(`DEBUG ${politician.name} social info:`, 
+    politician.other_info ? Object.keys(politician.other_info) : 'no other_info',
+    politician.links ? `has ${politician.links.length} links` : 'no links');
+  
+  // Twitter ID - Try multiple possible locations/formats
+  let hasTwitter = false;
+  let twitterUrl = null;
+  
+  // First try other_info.twitter_id
+  if (politician?.other_info?.twitter_id) {
+    hasTwitter = true;
+    const twitterId = Array.isArray(politician.other_info.twitter_id) 
+      ? politician.other_info.twitter_id[0] 
+      : politician.other_info.twitter_id;
+    
+    twitterUrl = `https://twitter.com/intent/user?user_id=${twitterId}`;
+  } 
+  // Try other_info.twitter as fallback
+  else if (politician?.other_info?.twitter) {
+    hasTwitter = true;
+    const twitterHandle = Array.isArray(politician.other_info.twitter) 
+      ? politician.other_info.twitter[0] 
+      : politician.other_info.twitter;
+    
+    twitterUrl = `https://twitter.com/${twitterHandle.replace('@', '')}`;
+  }
+  // Check in links array for twitter.com URLs
+  else if (politician?.links?.some(link => link?.url?.includes('twitter.com'))) {
+    hasTwitter = true;
+    const twitterLink = politician.links.find(link => link?.url?.includes('twitter.com'));
+    twitterUrl = twitterLink?.url || null;
+  }
+  
+  // Wikipedia ID - multiple possible formats
+  let hasWikipedia = false;
+  let wikipediaUrl = null;
+  
+  if (politician?.other_info?.wikipedia_id) {
+    hasWikipedia = true;
+    const wikiId = Array.isArray(politician.other_info.wikipedia_id) 
+      ? politician.other_info.wikipedia_id[0] 
+      : politician.other_info.wikipedia_id;
+    
+    wikipediaUrl = `https://en.wikipedia.org/wiki/${wikiId}`;
+  }
+  // Check in links array for wikipedia.org URLs
+  else if (politician?.links?.some(link => link?.url?.includes('wikipedia.org'))) {
+    hasWikipedia = true;
+    const wikiLink = politician.links.find(link => link?.url?.includes('wikipedia.org'));
+    wikipediaUrl = wikiLink?.url || null;
+  }
+  
+  // Facebook link - check links array
+  let hasFacebook = false;
+  let facebookUrl = null;
+  
+  // Check for Facebook in various formats
+  if (politician?.links) {
+    const fbLink = politician.links.find(link => 
+      link?.url?.includes('facebook.com') || 
+      link?.url?.includes('fb.com') ||
+      (link?.note && link?.note.toLowerCase().includes('facebook'))
+    );
+    
+    if (fbLink?.url) {
+      hasFacebook = true;
+      facebookUrl = fbLink.url;
+      if (!facebookUrl.startsWith('http')) {
+        facebookUrl = `https://${facebookUrl}`;
+      }
+    }
+  }
+  
+  // Related URLs that might contain social links (PoliticianDetails checks these)
+  if (politician.related) {
+    console.log(`DEBUG ${politician.name} has related URLs:`, Object.keys(politician.related));
+  }
+  
+  const hasSocials = !!(twitterUrl || wikipediaUrl || facebookUrl);
+  
+  if (hasSocials) {
+    console.log(`Found socials for ${politician.name}: Twitter: ${hasTwitter}, Wiki: ${hasWikipedia}, FB: ${hasFacebook}`);
+  } else {
+    console.log(`No social media found for ${politician.name}`);
+  }
+  
+  return {
+    twitterUrl,
+    wikipediaUrl,
+    facebookUrl,
+    hasSocials
+  };
+};
+
 interface PoliticianListProps {
   politicians: Politician[];
   loading: boolean;
@@ -32,6 +132,7 @@ interface PoliticianListProps {
   refreshing: boolean;
   onRefresh: () => Promise<void>;
   onToggleWatch?: (politician: Politician) => Promise<void>;
+  onCardPress?: (politician: Politician) => void;
 }
 
 // Memoized politician card component to prevent unnecessary re-renders
@@ -57,16 +158,17 @@ const PoliticianCard = memo(({
   const imageSource = getPoliticianImageSource(politician);
   const partyColor = getPartyColor(politician?.current_party?.short_name?.en);
   
-  // Generate social media links
-  const twitterUrl = politician?.other_info?.twitter_id ? 
-    `https://twitter.com/intent/user?user_id=${politician.other_info.twitter_id[0] || politician.other_info.twitter_id}` : null;
+  // Extract social media info using the helper function - now consistent with PoliticianDetails
+  const { twitterUrl, wikipediaUrl, facebookUrl, hasSocials } = extractSocialMediaLinks(politician);
+
+  // Check if contact info is available
+  const hasContactInfo = !!(politician?.email || politician?.voice);
   
-  const wikipediaUrl = politician?.other_info?.wikipedia_id ?
-    `https://en.wikipedia.org/wiki/${politician.other_info.wikipedia_id[0] || politician.other_info.wikipedia_id}` : null;
-  
-  const facebookUrl = politician?.links?.find(link => link?.url?.includes('facebook'))?.url || null;
-  
-  const hasSocials = twitterUrl || wikipediaUrl || facebookUrl;
+  // Check if we have full details loaded - Safely handle the hasFullDetails property
+  const politicianWithStatus = politician as (Politician & { hasFullDetails?: boolean });
+  const hasFullDetails = politicianWithStatus?.hasFullDetails !== undefined 
+    ? politicianWithStatus.hasFullDetails 
+    : !!(hasContactInfo || hasSocials || (politician?.memberships && politician.memberships.length > 0));
 
   const handleToggleWatch = (e: GestureResponderEvent) => {
     e.stopPropagation();
@@ -119,12 +221,20 @@ const PoliticianCard = memo(({
               {politician?.current_riding?.name?.en || 'Unknown Riding'}
               {politician?.current_riding?.province ? `, ${politician.current_riding.province}` : ''}
             </Text>
+            
+            {/* Show indicator if details are not fully loaded */}
+            {!hasFullDetails && (
+              <View style={styles.incompleteInfoBadge}>
+                <MaterialIcons name="info-outline" size={14} color="#666" style={styles.infoIcon} />
+                <Text style={styles.incompleteInfoText}>Tap for more details</Text>
+              </View>
+            )}
           </View>
         </View>
         
         <View style={styles.contactInfoRow}>
           <View style={styles.contactSection}>
-            {politician?.email && (
+            {politician?.email ? (
               <TouchableOpacity 
                 style={styles.contactRow}
                 onPress={() => onSendEmail(politician.email || '')}
@@ -134,9 +244,14 @@ const PoliticianCard = memo(({
                   {politician.email}
                 </Text>
               </TouchableOpacity>
+            ) : !hasFullDetails && (
+              <View style={styles.missingContactRow}>
+                <MaterialIcons name="email" size={16} color="#999" style={styles.contactIcon} />
+                <Text style={styles.missingContactText}>Contact info may be available</Text>
+              </View>
             )}
             
-            {politician?.voice && (
+            {politician?.voice ? (
               <TouchableOpacity 
                 style={styles.contactRow}
                 onPress={() => onMakePhoneCall(politician.voice || '')}
@@ -144,10 +259,10 @@ const PoliticianCard = memo(({
                 <MaterialIcons name="phone" size={16} color={partyColor} style={styles.contactIcon} />
                 <Text style={styles.contactText}>{politician.voice}</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
           
-          {hasSocials && (
+          {hasSocials ? (
             <View style={styles.socialLinks}>
               {twitterUrl && (
                 <TouchableOpacity 
@@ -176,6 +291,13 @@ const PoliticianCard = memo(({
                 </TouchableOpacity>
               )}
             </View>
+          ) : !hasFullDetails && (
+            <TouchableOpacity 
+              style={styles.moreInfoButton}
+              onPress={() => onCardPress(politician)}
+            >
+              <Text style={styles.moreInfoButtonText}>More Info</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -190,7 +312,8 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
   onLoadMore,
   refreshing,
   onRefresh,
-  onToggleWatch
+  onToggleWatch,
+  onCardPress
 }) => {
   const navigation = useNavigation<any>();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -319,13 +442,13 @@ const PoliticianList: React.FC<PoliticianListProps> = ({
         key={politician.url}
         politician={politician}
         onToggleWatch={handleLocalToggleWatch}
-        onCardPress={navigateToPoliticianDetails}
+        onCardPress={onCardPress || navigateToPoliticianDetails}
         onOpenLink={openLink}
         onSendEmail={sendEmail}
         onMakePhoneCall={makePhoneCall}
       />
     ));
-  }, [localPoliticians, handleLocalToggleWatch, navigateToPoliticianDetails, openLink, sendEmail, makePhoneCall]);
+  }, [localPoliticians, handleLocalToggleWatch, onCardPress, navigateToPoliticianDetails, openLink, sendEmail, makePhoneCall]);
 
   if (error) {
     return (
@@ -577,6 +700,46 @@ const styles = StyleSheet.create({
   loadingMoreIndicator: {
     marginTop: 10,
     marginBottom: 20
+  },
+  incompleteInfoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f2',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  infoIcon: {
+    marginRight: 4,
+  },
+  incompleteInfoText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  missingContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  missingContactText: {
+    fontSize: 14,
+    color: '#999',
+    flex: 1,
+  },
+  moreInfoButton: {
+    backgroundColor: '#f2f2f2',
+    padding: 8,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  moreInfoButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555',
   },
 });
 

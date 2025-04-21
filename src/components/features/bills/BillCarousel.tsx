@@ -1,5 +1,5 @@
 import BillCard from '@components/BillCard';
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -45,6 +45,27 @@ export default function BillCarousel() {
   const [likedFilter, setLikedFilter] = useState<boolean | undefined>(undefined);
   const [watchedFilter, setWatchedFilter] = useState<boolean | undefined>(undefined);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const isInitialMount = useRef(true);
+
+  // Handle parliament or session changes - this will trigger the BillFilterBar to reload data
+  useEffect(() => {
+    // Skip on initial mount since BillFilterBar will load data automatically
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    console.log(`Parliament or session changed to ${parliament}-${session}, refreshing bills...`);
+    
+    // Clear current bills
+    setBills([]);
+    
+    // Set loading state to trigger BillFilterBar's load mechanism
+    setLoading(true);
+    
+    // No need to call any other methods here - the BillFilterBar component will handle 
+    // the loading through its own useEffect hooks and the onLoadingChange callback
+  }, [parliament, session]);
 
   const handleSearchTextChange = useCallback((text: string) => {
     setSearchText(text);

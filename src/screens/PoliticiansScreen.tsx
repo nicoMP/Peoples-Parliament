@@ -9,6 +9,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { PoliticiansStackParamList } from '../navigation/stacks/PoliticiansStack';
+import PoliticianFilterService from '../services/filters/PoliticianFilterService';
 
 type NavigationProp = NativeStackNavigationProp<PoliticiansStackParamList, 'PoliticiansList'>;
 
@@ -30,10 +31,12 @@ export default function PoliticiansScreen() {
     applyFilters,
     refreshPoliticians,
     setUseCurrentOnly: hookSetUseCurrentOnly,
-    loadMore
+    loadMore,
+    updatePoliticianDetails
   } = usePoliticians();
 
   const watchedPoliticiansService = WatchedPoliticiansService.getInstance();
+  const filterService = PoliticianFilterService.getInstance();
 
   // Filter politicians based on watch status - memoized to prevent rerenders
   const updateFilteredPoliticians = useCallback(async () => {
@@ -188,10 +191,23 @@ export default function PoliticiansScreen() {
     applyFilters(newFilters);
   }, [includeOption, hookSetUseCurrentOnly, searchText, partyFilter, provinceFilter, applyFilters]);
 
-  // Handle watch toggling
+  // Handle watch toggling - now with details update
   const handleToggleWatch = useCallback(async (politician: Politician) => {
     console.log(`[handleToggleWatch] Called for: ${politician.name} (${politician.url}). Current showWatchedOnly=${showWatchedOnly}`);
     try {
+      // Check if we need to fetch detailed info first - use the hasFullDetails property if available
+      const politicianWithStatus = politician as (Politician & { hasFullDetails?: boolean });
+      const hasDetails = politicianWithStatus.hasFullDetails === true || 
+        politician.email || politician.voice || politician.links || politician.memberships;
+        
+      if (!hasDetails) {
+        console.log(`Fetching details for ${politician.name} before toggling watch status`);
+        const detailedPolitician = await updatePoliticianDetails(politician);
+        if (detailedPolitician) {
+          politician = detailedPolitician;
+        }
+      }
+      
       const isWatching = await watchedPoliticiansService.isWatchingPolitician(politician.url);
       console.log(`[handleToggleWatch] ${politician.name} is currently watched: ${isWatching}`);
 
@@ -209,7 +225,26 @@ export default function PoliticiansScreen() {
     } catch (error) {
       console.error('[handleToggleWatch] Error toggling watch status:', error);
     }
-  }, [watchedPoliticiansService, updateFilteredPoliticians, showWatchedOnly]);
+  }, [watchedPoliticiansService, updateFilteredPoliticians, showWatchedOnly, updatePoliticianDetails]);
+
+  // Handle navigation to details - fetch details if needed
+  const handleNavigateToDetails = useCallback(async (politician: Politician) => {
+    // Check if we need to update details - use the hasFullDetails property if available
+    const politicianWithStatus = politician as (Politician & { hasFullDetails?: boolean });
+    const hasDetails = politicianWithStatus.hasFullDetails === true || 
+      politician.email || politician.voice || politician.links || politician.memberships;
+      
+    if (!hasDetails) {
+      console.log(`Fetching details for ${politician.name} before navigation`);
+      await updatePoliticianDetails(politician);
+    } else {
+      console.log(`${politician.name} already has complete details, navigating directly`);
+    }
+    
+    if (!politician?.url) return;
+    const id = politician.url.split('/').filter(Boolean).pop() || '';
+    navigation.navigate('PoliticianDetails', { id });
+  }, [navigation, updatePoliticianDetails]);
 
   // Memoize the refresh callback to avoid recreating it on every render
   const handleRefreshCallback = useCallback(async () => {
@@ -245,11 +280,9 @@ export default function PoliticiansScreen() {
         error={error}
         refreshing={refreshing}
         onRefresh={handleRefreshCallback}
-        onToggleWatch={async (politician) => {
-          console.log('INLINE TOGGLE FUNCTION CALLED for', politician.name);
-          return await handleToggleWatch(politician);
-        }}
+        onToggleWatch={handleToggleWatch}
         onLoadMore={!showWatchedOnly ? loadMore : undefined}
+        onCardPress={handleNavigateToDetails}
       />
     </SafeAreaView>
   );

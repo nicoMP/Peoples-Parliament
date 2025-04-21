@@ -186,10 +186,6 @@ export default function MyBillsScreen() {
   return (
     <View style={[styles.container, { paddingTop: StatusBar.currentHeight || 0 }]}>
       <BillFilterBar 
-        parliament="44"  // Default values, not used for this screen
-        session="1"
-        onParliamentChange={() => {}}
-        onSessionChange={() => {}}
         onBillsChange={() => {}}
         onLoadingChange={() => {}}
         searchText={searchText}

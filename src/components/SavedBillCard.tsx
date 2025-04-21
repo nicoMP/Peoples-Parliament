@@ -213,6 +213,15 @@ export default function SavedBillCard({
         </View>
       </View>
       <Text style={styles.title}>{bill.title}</Text>
+      
+      <View style={styles.sessionParliamentContainer}>
+        <View style={styles.badgeContainer}>
+          <Text style={styles.badgeLabel}>Parliament:</Text>
+          <View style={styles.badgeValue}>
+            <Text style={styles.badgeValueText}>{bill.session}</Text>
+          </View>
+        </View>
+      </View>
 
       <Text style={styles.label}>Type</Text>
       <Text style={styles.body}>{bill.billType}</Text>
@@ -335,6 +344,38 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 14,
     color: '#444',
+  },
+  summary: {
+    fontSize: 14,
+    color: '#444',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  sessionParliamentContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    gap: 12,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  badgeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#555',
+  },
+  badgeValue: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeValueText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
   },
   watchingBadge: {
     flexDirection: 'row',

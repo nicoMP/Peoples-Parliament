@@ -6,6 +6,7 @@ import PoliticianFilterBar from '../components/features/PoliticianFilterBar';
 import usePoliticians from '../hooks/usePoliticians';
 import { PoliticianFilters } from '../types/parliament';
 import PoliticiansCacheService from '../services/CachePoliticiansService';
+import PoliticianFilterService from '../services/filters/PoliticianFilterService';
 
 const Politicians = () => {
   const navigation = useNavigation();
@@ -14,6 +15,7 @@ const Politicians = () => {
   const [selectedProvince, setSelectedProvince] = useState<string>('');
   const [includeOption, setIncludeOption] = useState<string>('');
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  const filterService = PoliticianFilterService.getInstance();
   
   // Initialize cache on component mount
   useEffect(() => {

@@ -155,6 +155,22 @@ export const fetchPoliticianDetails = async (url: string, forceFresh: boolean = 
     // Process the politician's image for local caching
     const processedPolitician = await cachePoliticianImage(response.data);
     
+    // Debug logging for social media info in politician details response
+    console.log(`DETAILS Response Check for ${processedPolitician.name}:`);
+    console.log(`- Twitter ID: ${processedPolitician.other_info?.twitter_id ? 'YES' : 'NO'}`);
+    if (processedPolitician.other_info?.twitter_id) {
+      console.log(`  - Value: ${JSON.stringify(processedPolitician.other_info.twitter_id)}`);
+    }
+    console.log(`- Wikipedia ID: ${processedPolitician.other_info?.wikipedia_id ? 'YES' : 'NO'}`);
+    if (processedPolitician.other_info?.wikipedia_id) {
+      console.log(`  - Value: ${JSON.stringify(processedPolitician.other_info.wikipedia_id)}`);
+    }
+    console.log(`- Has links array: ${Array.isArray(processedPolitician.links) ? 'YES' : 'NO'}`);
+    console.log(`- Facebook link: ${processedPolitician.links?.find(l => l?.url?.includes('facebook')) ? 'YES' : 'NO'}`);
+    if (processedPolitician.links && processedPolitician.links.length > 0) {
+      console.log(`  - Link count: ${processedPolitician.links.length}`);
+    }
+    
     // Cache the result
     await cacheService.saveToCache(cacheKey, processedPolitician, CACHE_CATEGORIES.POLITICIANS);
     
@@ -224,6 +240,16 @@ const processPoliticiansImages = async (politicians: Politician[]): Promise<Poli
       politicians.map(politician => cachePoliticianImage(politician))
     );
     
+    // Debug logging for social media info in API response
+    if (processedPoliticians.length > 0) {
+      const samplePolitician = processedPoliticians[0];
+      console.log(`API Response Check for ${samplePolitician.name}:`);
+      console.log(`- Twitter ID: ${samplePolitician.other_info?.twitter_id ? 'YES' : 'NO'}`);
+      console.log(`- Wikipedia ID: ${samplePolitician.other_info?.wikipedia_id ? 'YES' : 'NO'}`);
+      console.log(`- Has links array: ${Array.isArray(samplePolitician.links) ? 'YES' : 'NO'}`);
+      console.log(`- Facebook link: ${samplePolitician.links?.find(l => l?.url?.includes('facebook')) ? 'YES' : 'NO'}`);
+    }
+    
     return processedPoliticians;
   } catch (error) {
     console.error('Error processing politicians images:', error);
@@ -238,13 +264,15 @@ const processPoliticiansImages = async (politicians: Politician[]): Promise<Poli
  * @param loadDetails - Whether to load detailed information for each politician
  * @param forceFresh - If true, bypass cache and fetch fresh data
  * @param skipFresh - If true, only use cached data and never fetch from API
+ * @param loadDetailsCompletely - If true, force loading complete details including social media
  * @returns Promise with politicians data
  */
 export const fetchPoliticians = async (
   filters: PoliticianFilters = {}, 
   loadDetails: boolean = false,
   forceFresh: boolean = false,
-  skipFresh: boolean = false
+  skipFresh: boolean = false,
+  loadDetailsCompletely: boolean = false
 ): Promise<PoliticianResponse> => {
   const params: Record<string, any> = {};
   
@@ -318,7 +346,7 @@ export const fetchPoliticians = async (
     await cacheService.saveToCache(cacheKey, response, CACHE_CATEGORIES.POLITICIANS);
 
     // If loadDetails is true, fetch full details for each politician
-    if (loadDetails && response.objects.length > 0) {
+    if ((loadDetails || loadDetailsCompletely) && response.objects.length > 0) {
       // We'll process in parallel batches to speed things up while still managing rate limits
       const BATCH_SIZE = CONFIG.POLITICIAN_BATCH_SIZE;
       const DELAY_BETWEEN_BATCHES = CONFIG.BATCH_DELAY;
@@ -339,8 +367,19 @@ export const fetchPoliticians = async (
         const batchPromises = batch.map(async (politician) => {
           try {
             // Fetch detailed data using the politician's URL
-            const details = await fetchPoliticianDetails(politician.url, forceFresh);
-            console.log(details)
+            // If loadDetailsCompletely is true, always force fresh data for complete details
+            const details = await fetchPoliticianDetails(politician.url, loadDetailsCompletely ? true : forceFresh);
+            
+            // Preserve the cached_image from the list view if it exists but isn't in the details
+            if (politician.cached_image && !details.cached_image) {
+              details.cached_image = politician.cached_image;
+            }
+            
+            // Preserve the isWatching status
+            if (politician.isWatching !== undefined) {
+              details.isWatching = politician.isWatching;
+            }
+            
             return { ...politician, ...details };
           } catch (error) {
             // If we hit a rate limit, don't fail the whole batch

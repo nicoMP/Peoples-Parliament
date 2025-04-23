@@ -1,19 +1,18 @@
-import { ThemedText } from '@components/ThemedText';
-import { ThemedView } from '@components/ThemedView';
+
 import { Stack, router } from 'expo-router';
 import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 
 export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">This screen doesn't exist.</ThemedText>
+      <View style={styles.container}>
+        <Text>This screen doesn't exist.</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.link}>
-          <ThemedText type="link">Go back</ThemedText>
+          <Text>Go back</Text>
         </TouchableOpacity>
-      </ThemedView>
+      </View>
     </>
   );
 }

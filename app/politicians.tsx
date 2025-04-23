@@ -1,7 +1,7 @@
 import React from 'react';
-import Politicians from '../src/pages/Politicians';
+import Politicians from './src/screens/Politicians';
 import { Stack } from 'expo-router';
-import { getPartyColor } from '../src/utils/partyColors'; // We'll create this utility
+import { getPartyColor } from './src/utils/partyColors'; // We'll create this utility
 
 export default function PoliticiansScreen() {
   return (

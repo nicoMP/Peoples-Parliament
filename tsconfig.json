@@ -11,10 +11,10 @@
         "./components/*"
       ],
       "@src/*": [
-        "./src/*"
+        "app/src/*"
       ],
       "@constants/*": [
-        "./constants/*"
+        "app/constants/*"
       ],
       "@functions/*": [
         "./functions/*"
@@ -23,7 +23,7 @@
         "./hooks/*"
       ],
       "@services/*": [
-        "./src/services/*"
+        "app/src/services/*"
       ]
     }
   },

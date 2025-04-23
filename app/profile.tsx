@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { AuthService, User } from '../src/services/AuthService';
+import { AuthService, User } from './src/services/AuthService';
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<User | null>(null);

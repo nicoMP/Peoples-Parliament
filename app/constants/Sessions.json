@@ -1,6 +1,19 @@
 {
     "parliaments": [
       {
+        "parliament": 45,
+        "sessions": [
+          {
+            "session": 1,
+            "start_date": "2025-04-26",
+            "end_date": "TBA",
+            "duration_days": 1141,
+            "senate_sittings": 249,
+            "house_sittings": 392
+          }
+        ]
+      },
+      {
         "parliament": 44,
         "sessions": [
           {

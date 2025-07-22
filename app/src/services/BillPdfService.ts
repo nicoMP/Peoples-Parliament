@@ -102,6 +102,14 @@ export class BillPdfService {
     return getDb();
   }
 
+  /**
+   * Gets the remote version of the PDF
+   * @param session 
+   * @param billNumber 
+   * @param version 
+   * @param chamber 
+   * @returns 
+   */
   public getBillPdfUrl(session: string, billNumber: string, version: number = 1, chamber: string = 'Government'): string {
     // Format URL: https://www.parl.ca/Content/Bills/[session]/[chamber]/[billNumber]/[billNumber]_[version]/[billNumber]_[version].PDF
     const pdfUrl = `https://www.parl.ca/Content/Bills/${session}/${chamber}/${billNumber}/${billNumber}_${version}/${billNumber}_${version}.PDF`;

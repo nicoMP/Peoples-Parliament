@@ -13,9 +13,9 @@ import { BillPdfService } from '@/app/src/services/BillPdfService';
 import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { MyBillsStackParamList } from '@/app/src/navigation/stacks/MyBillsStack';
 
-type NavigationProp = NativeStackNavigationProp<MyBillsStackParamList, 'MyBills'>;
+
+type NavigationProp = NativeStackNavigationProp<any, 'MyBills'>;
 
 interface SavedBillCardProps {
   bill: SavedBill;
@@ -86,7 +86,7 @@ export default function SavedBillCard({
         billNumber: bill.billNumber
       });
     } catch (error) {
-      console.error('Error opening PDF:', error);
+      
       
       // If file not found but not marked as missing, update the status
       if (bill.pdfMissing !== 1) {
@@ -130,7 +130,7 @@ export default function SavedBillCard({
       
       Alert.alert('Success', 'PDF download retried successfully');
     } catch (error) {
-      console.error('Error retrying download:', error);
+      
       Alert.alert('Error', 'Failed to retry download');
     } finally {
       setRetryingDownload(false);
@@ -152,7 +152,7 @@ export default function SavedBillCard({
       );
       if (onLikeChange) onLikeChange(newLiked);
     } catch (error) {
-      console.error('Error updating like status:', error);
+      
       Alert.alert('Error', 'Failed to update like status');
       setLiked(!newLiked); // Revert on error
     }
@@ -173,7 +173,7 @@ export default function SavedBillCard({
       );
       if (onDislikeChange) onDislikeChange(newDisliked);
     } catch (error) {
-      console.error('Error updating dislike status:', error);
+      
       Alert.alert('Error', 'Failed to update dislike status');
       setDisliked(!newDisliked); // Revert on error
     }

@@ -1,18 +1,21 @@
 // src/services/BillService.ts
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import qs from "qs";
 
 export interface PaginatedResponse<T> {
     objects: T[];
-    pagination: {
-        offset: number;
-        limit: number;
-        next_url: string | null;
-        previous_url: string | null;
-    }
+    pagination: PaginationObject
+}
+
+export interface PaginationObject {
+    offset: number;
+    limit: number;
+    next_url: string | null;
+    previous_url: string | null;
 }
 
 export class OpenParliamentService {
-    public axiosInstance: AxiosInstance;
+    private axiosInstance: AxiosInstance;
 
     constructor(
         endpoint: string = ''
@@ -22,13 +25,15 @@ export class OpenParliamentService {
         // For local development on a device/emulator, use your machine's IP, not 'localhost'.
         // e.g., 'http://192.168.1.100:3000/api/parliament'
         // If OPEN_PARLIAMENT_BASE_URL is not set, provide a sensible default for testing.
-        const baseApiUrl = process.env.OPEN_PARLIAMENT_BASE_URL || 'https://api.openparliament.ca'; // A common public API example
+        const baseApiUrl = process.env.OPEN_PARLIAMENT_BASE_URL || 'https://www.parl.ca/legisinfo'; // A common public API example
 
         this.axiosInstance = axios.create({
             baseURL: baseApiUrl + endpoint, // Combine base URL and specific endpoint
             timeout: 10000, // 10 seconds timeout
+            paramsSerializer: params => qs.stringify(params, { arrayFormat: 'repeat' }),
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
                 // 'Authorization': 'Bearer YOUR_AUTH_TOKEN', // Add if you have auth
             },
         });
@@ -46,6 +51,7 @@ export class OpenParliamentService {
                         console.error('No response received:', error.request);
                     }
                 } else {
+                    console.error(error.url)
                     console.error('Non-Axios Error in BillService:', error);
                 }
                 return Promise.reject(error); // Re-throw the error
@@ -53,15 +59,14 @@ export class OpenParliamentService {
         );
     }
 
-    /**
-     * Fetches next paginated results from a given endpoint.
-     * @param endpoint The next URL to fetch paginated results from.
-     * @returns All next T objects for the page.
-     */
-    public async fetchNextPaginated<T>(
-        nextUrl: string,
-    ): Promise<PaginatedResponse<T>> {
-        const response: AxiosResponse<PaginatedResponse<T>> = await this.axiosInstance.get(nextUrl);
-        return response.data;
+    get<T>(params: any, url: string = ''): Promise<T> {
+        const fullUrl = this.axiosInstance.defaults.baseURL + url;
+        console.log('Requesting URL:', fullUrl);
+        console.log('With parameters:', params);
+        return this.axiosInstance.get<T>(url, { params }).then(response => response.data);
+    }
+
+    public get baseUrl() {
+        return this.axiosInstance.defaults.baseURL
     }
 }

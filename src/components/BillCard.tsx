@@ -1,20 +1,12 @@
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ViewStyle,
-  TextStyle,
-  Alert,
-  ToastAndroid,
-  Platform,
-} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 // import { BillPdfService } from '@src/services/BillPdfService';
-import * as FileSystem from 'expo-file-system';
 // import { RootStackParamList } from '../types/navigation';
 
 // type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'BillDetails'>;
@@ -35,12 +27,11 @@ export interface BillCardProps {
   PassedSenateSecondReadingDateTime?: string | null;
   PassedSenateThirdReadingDateTime?: string | null;
   ReceivedRoyalAssentDateTime?: string | null;
-  number: string;
-  session: string;
   parliament?: string;
+  onPressCard: ()=>void;
 }
 
-export default function BillCard(props: BillCardProps) {
+export default function BillCard(props: Partial<BillCardProps>) {
   const {
     BillNumberFormatted,
     LongTitleEn,
@@ -55,9 +46,8 @@ export default function BillCard(props: BillCardProps) {
     PassedSenateSecondReadingDateTime,
     PassedSenateThirdReadingDateTime,
     ReceivedRoyalAssentDateTime,
-    session,
-    number,
     parliament: propParliament,
+    onPressCard
   } = props ?? {};
   
   const [downloading, setDownloading] = useState(false);
@@ -394,7 +384,7 @@ export default function BillCard(props: BillCardProps) {
     }
     
     // Default to what bill type suggests (C: House, S: Senate)
-    return BillNumberFormatted.startsWith('C') ? 'House of Commons' : 'Senate';
+    return BillNumberFormatted?.startsWith('C') ? 'House of Commons' : 'Senate';
   };
 
   const chamberBadgeColor = getCurrentChamber() === 'Senate' ? '#b71c1c' : 
@@ -419,7 +409,7 @@ export default function BillCard(props: BillCardProps) {
 //   };
 
   return (
-    <Pressable onPress={() =>console.log('HI')} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+    <Pressable onPress={() =>onPressCard? onPressCard() : ()=>{}} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
       <View style={styles.header}>
         <Text style={styles.billNumber}>{BillNumberFormatted}</Text>
         <View style={styles.headerActions}>

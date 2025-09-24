@@ -11,15 +11,12 @@ const openParliamentService = new OpenParliamentService();
 
 export default function Bills() {
   const [bills, setBills] = useState<BillDetails[]>([]);
-  const [hasMorePages, setHasMorePages] = useState<boolean>(true);
-  const [page, setPage] = useState<number>(1);
-  const [isLoadingInitial, setIsLoadingInitial] = useState(true); // For initial fetch
-  const [isLoadingMore, setIsLoadingMore] = useState(false);     // For pagination
+  const [isLoadingBills, setIsLoadingBills] = useState(true); // For initial fetch
   const [error, setError] = useState<string | null>(null);
   const { session, parliament } = useSession();
   const db = getDb();
   const fetchBills = async () => {
-    setIsLoadingInitial(true);
+    setIsLoadingBills(true);
     setError(null);
     try {
       await billService.getBillsBySession(parliament, session);
@@ -29,7 +26,7 @@ export default function Bills() {
       console.error('Initial fetch error:', e);
       setError('Failed to load initial bills.');
     } finally {
-      setIsLoadingInitial(false);
+      setIsLoadingBills(false);
     }
   };
   useEffect(() => {
@@ -41,10 +38,10 @@ export default function Bills() {
     // You can also navigate to a detail screen here, etc.
   };
 
-  if (isLoadingInitial) {
+  if (isLoadingBills) {
     return (
       <View style={styles.container}>
-        <Text>Loading initial bills...</Text>
+        <Text>Loading initial bills ({parliament}-{session})...</Text>
         {/* Or a proper ActivityIndicator */}
       </View>
     );
@@ -57,6 +54,16 @@ export default function Bills() {
       </View>
     );
   }
+  
+  if(!isLoadingBills && bills.length === 0){
+      return (
+        <View style={styles.container}>
+          <Text>No bills Found for {parliament}-{session}</Text>
+          {/* Or a proper ActivityIndicator */}
+        </View>
+      );
+  }
+
 
   return (
     <View style={styles.container}>
@@ -82,8 +89,6 @@ export default function Bills() {
           ></BillCard>
         )}
         keyExtractor={(item) => item.BillId.toString()} // Ensure unique keys, use ID if available
-        onEndReachedThreshold={0.7}
-        ListFooterComponent={() => isLoadingMore ? <Text style={{ textAlign: 'center', padding: 10 }}>Loading more...</Text> : null}
       />
     </View>
   );

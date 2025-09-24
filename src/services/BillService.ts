@@ -63,14 +63,14 @@ export class BillService {
    */
   public async getBillsBySession(parliament: number = 45, session: number = 1) {
     const db = getDb();
-    const parlsession = `${parliament}-${session}`
-    const cachedSession = await db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on > ?`, [session, parliament, Date.now() - 86400000])
+    const parlsession = `${parliament}-${session}`;
+    const oneDayAgo = Math.floor((Date.now() - 86400000) / 1000);
+    const cachedSession = await db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on < ?`, [session, parliament, oneDayAgo]);
     if(!cachedSession){
       try {
         const bills  = await OpenParliamentInstance.get<BillDetails[]>({
           parlsession
         });
-        console.log(bills)
         bills.forEach(async (bill) => {
           await db.runAsync(insertBillSQL, [
             bill.BillId,
@@ -123,7 +123,9 @@ export class BillService {
       } catch (e) {
         console.error(e)
       }
-    } 
+    } else {
+
+    }
   }
 }
 

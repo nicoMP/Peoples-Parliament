@@ -65,7 +65,7 @@ export async function initDb() {
         `CREATE TABLE IF NOT EXISTS cached_session (
             parliament INTEGER,
             session INTEGER,
-            updated_on DATE DEFAULT (CURRENT_TIMESTAMP),
+            updated_on INTEGER DEFAULT (unixepoch()),
             PRIMARY KEY (parliament, session)
         )`
     )

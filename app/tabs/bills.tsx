@@ -1,26 +1,24 @@
 import BillCard from '@/src/components/BillCard';
+import { useBills } from '@/src/contexts/BillContext';
 import { useSession } from '@/src/contexts/SessionContext';
-import { BillDetails, BillService } from '@/src/services/BillService';
+import { BillService, IBillData } from '@/src/services/BillService';
 import { getDb } from '@/src/services/database';
-import { OpenParliamentService } from '@/src/services/OpenParliamentService';
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 const billService = new BillService();
-const openParliamentService = new OpenParliamentService();
 
 export default function Bills() {
-  const [bills, setBills] = useState<BillDetails[]>([]);
+  const { bills, setBills } = useBills();
   const [isLoadingBills, setIsLoadingBills] = useState(true); // For initial fetch
   const [error, setError] = useState<string | null>(null);
   const { session, parliament } = useSession();
-  const db = getDb();
   const fetchBills = async () => {
     setIsLoadingBills(true);
     setError(null);
     try {
       await billService.getBillsBySession(parliament, session);
-      const _bills: BillDetails[] = await db.getAllAsync(`SELECT * FROM bills WHERE ParliamentNumber = ? AND SessionNumber = ?`, [parliament, session])
+      const _bills: IBillData[] = await billService.getBillsDataBySession(parliament, session)
       setBills(_bills);
     } catch (e) {
       console.error('Initial fetch error:', e);
@@ -33,7 +31,7 @@ export default function Bills() {
     fetchBills();
   }, [parliament, session]); // Empty dependency array for initial fetch
 
-  const handleBillCardPress = (billItem: BillDetails) => {
+  const handleBillCardPress = (billItem: IBillData) => {
     console.log('Bill item touched:', billItem);
     // You can also navigate to a detail screen here, etc.
   };
@@ -54,14 +52,14 @@ export default function Bills() {
       </View>
     );
   }
-  
-  if(!isLoadingBills && bills.length === 0){
-      return (
-        <View style={styles.container}>
-          <Text>No bills Found for {parliament}-{session}</Text>
-          {/* Or a proper ActivityIndicator */}
-        </View>
-      );
+
+  if (!isLoadingBills && bills.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text>No bills Found for {parliament}-{session}</Text>
+        {/* Or a proper ActivityIndicator */}
+      </View>
+    );
   }
 
 
@@ -71,20 +69,7 @@ export default function Bills() {
         data={bills}
         renderItem={({ item }) => (
           <BillCard
-            BillId={item.BillId}
-            BillNumberFormatted={item.BillNumberFormatted}
-            BillTypeEn={item.BillTypeEn}
-            LongTitleEn={item.LongTitleEn}
-            ParlSessionEn={item.ParlSessionEn}
-            SponsorEn={item.SponsorEn}
-            CurrentStatusEn={item.CurrentStatusEn}
-            LatestCompletedMajorStageEn={item.LatestCompletedMajorStageEn}
-            PassedHouseFirstReadingDateTime={item.PassedHouseFirstReadingDateTime}
-            PassedHouseSecondReadingDateTime={item.PassedHouseSecondReadingDateTime}
-            PassedHouseThirdReadingDateTime={item.PassedHouseThirdReadingDateTime}
-            PassedSenateFirstReadingDateTime={item.PassedSenateFirstReadingDateTime}
-            PassedSenateSecondReadingDateTime={item.PassedSenateSecondReadingDateTime}
-            PassedSenateThirdReadingDateTime={item.PassedSenateThirdReadingDateTime}
+            bill={item}
             onPressCard={() => handleBillCardPress(item)}
           ></BillCard>
         )}

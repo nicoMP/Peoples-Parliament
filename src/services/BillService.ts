@@ -2,7 +2,15 @@
 import { getDb } from './database';
 import { OpenParliamentService } from './OpenParliamentService';
 
-export interface BillDetails {
+export interface IBillData extends IBillDetailsRes, IBillLocalData {
+}
+
+export interface IBillLocalData {
+  BillId: number;
+  IsLiked: boolean,
+  IsDisliked: boolean
+}
+export interface IBillDetailsRes {
   SearchScore: number;
   BillId: number;
   BillNumberPrefix: string | null;
@@ -52,7 +60,7 @@ export interface BillDetails {
 
 const OpenParliamentInstance = new OpenParliamentService('/en/bills/json')
 export class BillService {
-  public bills: Map<number, BillDetails> = new Map();
+  public bills: Map<number, IBillDetailsRes> = new Map();
   constructor() {
   }
 
@@ -65,10 +73,10 @@ export class BillService {
     const db = getDb();
     const parlsession = `${parliament}-${session}`;
     const oneDayAgo = Math.floor((Date.now() - 86400000) / 1000);
-    const cachedSession = await db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on < ?`, [session, parliament, oneDayAgo]);
-    if(!cachedSession){
+    const cachedSession = await db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on > ?`, [session, parliament, oneDayAgo]);
+    if (!cachedSession) {
       try {
-        const bills  = await OpenParliamentInstance.get<BillDetails[]>({
+        const bills = await OpenParliamentInstance.get<IBillDetailsRes[]>({
           parlsession
         });
         bills.forEach(async (bill) => {
@@ -123,10 +131,55 @@ export class BillService {
       } catch (e) {
         console.error(e)
       }
-    } else {
-
     }
   }
+
+  public async getBillsDataBySession(
+    parliament: number = 45,
+    session: number = 1,
+    titleSearch: string = ''
+  ): Promise<IBillData[]> {
+    const db = getDb();
+
+    let sql = `
+      SELECT b.*, bli.IsLiked, bli.IsDisliked
+      FROM bills b
+      LEFT JOIN bills_local_info bli
+        ON b.BillId = bli.BillId
+      WHERE b.ParliamentNumber = ?
+        AND b.SessionNumber = ?
+    `;
+
+    const params: any[] = [parliament, session];
+
+    if (titleSearch) {
+      sql += ` AND (b.LongTitleEn LIKE ? OR b.BillNumberFormatted LIKE ?)`;
+      params.push(`%${titleSearch}%`);
+      params.push(`%${titleSearch}%`);
+    }
+
+    return db.getAllAsync(sql, params);
+  }
+
+
+  public async likeBill(billId: number) {
+    const db = getDb();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO bills_local_info (BillId, IsLiked, IsDisliked)
+      VALUES (?, 1, 0)`,
+      [billId]
+    );
+  }
+
+  public async dislikeBill(billId: number) {
+    const db = getDb();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO bills_local_info (BillId, IsLiked, IsDisliked)
+      VALUES (?, 0, 1)`,
+      [billId]
+    );
+  }
+
 }
 
 const insertBillSQL = `

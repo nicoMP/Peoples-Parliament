@@ -12,6 +12,7 @@ export function getDb() {
 
 export async function initDb() {
     const db = getDb();
+    await db.execAsync(`DROP TABLE bills; DROP TABLE cached_session`)
     await db.execAsync(
         `CREATE TABLE IF NOT EXISTS bills (
         SearchScore REAL,
@@ -69,5 +70,12 @@ export async function initDb() {
             PRIMARY KEY (parliament, session)
         )`
     )
-
+    await db.execAsync(
+        `CREATE TABLE IF NOT EXISTS bills_local_info (
+            BillId INTEGER PRIMARY KEY,
+            IsLiked BOOLEAN default 0,
+            IsDisliked BOOLEAN default 0,
+            FOREIGN KEY (BillId) REFERENCES bills (BillId) ON DELETE CASCADE
+        )`
+    )
 }

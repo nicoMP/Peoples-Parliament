@@ -1,4 +1,5 @@
 import BillHeader from '@/src/components/BillHeader';
+import { BillProvider } from '@/src/contexts/BillContext';
 import { SessionProvider } from '@/src/contexts/SessionContext';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
@@ -65,25 +66,27 @@ export default function TabLayout() {
   }
   return (
     <SQLiteProvider databaseName='parliament.db' onInit={createBillTable}>
-      <SessionProvider>
-        <Tabs screenOptions={{ tabBarActiveTintColor: 'blue' }}>
-          <Tabs.Screen
-            name="bills"
-            options={{
-              title: 'Bills',
-              tabBarIcon: ({ color }) => <FontAwesome size={20} name="file-text-o" color={color} />,
-              header: () => <BillHeader />
-            }}
-          />
-          <Tabs.Screen
-            name="politicians"
-            options={{
-              title: 'Politicians',
-              tabBarIcon: ({ color }) => <FontAwesome size={20} name="user-o" color={color} />,
-            }}
-          />
-        </Tabs>
-      </SessionProvider>
+      <BillProvider>        
+        <SessionProvider>
+          <Tabs screenOptions={{ tabBarActiveTintColor: 'blue' }}>
+            <Tabs.Screen
+              name="bills"
+              options={{
+                title: 'Bills',
+                tabBarIcon: ({ color }) => <FontAwesome size={20} name="file-text-o" color={color} />,
+                header: () => <BillHeader />
+              }}
+            />
+            <Tabs.Screen
+              name="politicians"
+              options={{
+                title: 'Politicians',
+                tabBarIcon: ({ color }) => <FontAwesome size={20} name="user-o" color={color} />,
+              }}
+            />
+          </Tabs>
+        </SessionProvider>
+      </BillProvider>
     </SQLiteProvider>
   );
 }

@@ -7,6 +7,7 @@ import {
   View
 } from 'react-native';
 import { BillService, IBillData } from '../services/BillService';
+import { useRouter } from 'expo-router';
 // import { BillPdfService } from '@src/services/BillPdfService';
 // import { RootStackParamList } from '../types/navigation';
 
@@ -22,9 +23,9 @@ const billService = new BillService();
 export default function BillCard(props: BillCardProps) {
   const {
     bill,
-    onPressCard
   } = props ?? {};
   const {
+    BillId,
     BillNumberFormatted,
     LongTitleEn,
     SponsorEn,
@@ -39,6 +40,7 @@ export default function BillCard(props: BillCardProps) {
     PassedSenateThirdReadingDateTime,
     ReceivedRoyalAssentDateTime,
   } = bill;
+  const router = useRouter();
   const [downloading, setDownloading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [pdfMissing, setPdfMissing] = useState(false);
@@ -370,7 +372,7 @@ export default function BillCard(props: BillCardProps) {
   };
 
   return (
-    <Pressable onPress={() => onPressCard ? onPressCard() : () => { }} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+    <Pressable onPress={() => router.push(`/BillDetails?billId=${BillId}`)} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
       <View style={styles.header}>
         <Text style={styles.billNumber}>{BillNumberFormatted}</Text>
         <View style={styles.headerActions}>

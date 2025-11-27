@@ -25,7 +25,7 @@ export class OpenParliamentService {
         // For local development on a device/emulator, use your machine's IP, not 'localhost'.
         // e.g., 'http://192.168.1.100:3000/api/parliament'
         // If OPEN_PARLIAMENT_BASE_URL is not set, provide a sensible default for testing.
-        const baseApiUrl = process.env.OPEN_PARLIAMENT_BASE_URL || 'https://www.parl.ca/legisinfo'; // A common public API example
+        const baseApiUrl = process.env.OPEN_PARLIAMENT_BASE_URL || 'https://www.parl.ca'; // A common public API example
 
         this.axiosInstance = axios.create({
             baseURL: baseApiUrl + endpoint, // Combine base URL and specific endpoint
@@ -43,7 +43,7 @@ export class OpenParliamentService {
             response => response,
             error => {
                 if (axios.isAxiosError(error)) {
-                    console.error('Axios Error in BillService:', error.message);
+                    console.error('Axios Error:', error.message);
                     if (error.response) {
                         // console.error('Response Data:', error.response.data);
                         console.error('Response Status:', error.response.status);
@@ -52,17 +52,19 @@ export class OpenParliamentService {
                     }
                 } else {
                     console.error(error.url)
-                    console.error('Non-Axios Error in BillService:', error);
+                    console.error('Non-Axios Error:', error);
                 }
                 return Promise.reject(error); // Re-throw the error
             }
         );
     }
 
-    get<T>(params: any, url: string = ''): Promise<T> {
+    get<T>(params: any, url: string = '', options: import('axios').AxiosRequestConfig = {}): Promise<T> {
         const fullUrl = this.axiosInstance.defaults.baseURL + url;
         console.log('Requesting URL:', fullUrl);
-        console.log('With parameters:', params);
+        if (params) {
+            console.log('With parameters:', params);
+        }
         return this.axiosInstance.get<T>(url, { params }).then(response => response.data);
     }
 

@@ -12,7 +12,7 @@ export function getDb() {
 
 export async function initDb() {
     const db = getDb();
-    await db.execAsync(`DROP TABLE bills; DROP TABLE cached_session`)
+    await db.execAsync(`DROP TABLE bills; DROP TABLE cached_session; DROP TABLE bills_local_info; DROP TABLE bills_pdf`)
     await db.execAsync(
         `CREATE TABLE IF NOT EXISTS bills (
         SearchScore REAL,
@@ -76,6 +76,16 @@ export async function initDb() {
             IsLiked BOOLEAN default 0,
             IsDisliked BOOLEAN default 0,
             FOREIGN KEY (BillId) REFERENCES bills (BillId) ON DELETE CASCADE
+        )`
+    )
+    await db.execAsync(
+        `CREATE TABLE IF NOT EXISTS bills_pdf (
+            BillId,
+            url TEXT,
+            pdf TEXT,
+            version INTEGER,
+            FOREIGN KEY (BillId) REFERENCES bills (BillId) ON DELETE CASCADE,
+            PRIMARY KEY (BillID, version)
         )`
     )
 }

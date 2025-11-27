@@ -1,4 +1,6 @@
 // src/services/BillService.ts
+import { EBillTypeEn } from '../utility/bills';
+import { IPdfDB } from './BillPdfService';
 import { getDb } from './database';
 import { OpenParliamentService } from './OpenParliamentService';
 
@@ -40,7 +42,7 @@ export interface IBillDetailsRes {
   SessionNumber: number;
   OriginatingChamberId: number;
   BillTypeId: number;
-  BillTypeEn: string;
+  BillTypeEn: EBillTypeEn;
   BillTypeFr: string;
   CurrentStatusId: number;
   CurrentStatusEn: string;
@@ -58,9 +60,10 @@ export interface IBillDetailsRes {
   LatestActivityDateTime: string;
 }
 
-const OpenParliamentInstance = new OpenParliamentService('/en/bills/json')
+const OpenParliamentInstance = new OpenParliamentService('/legisinfo/en/bills/json')
 export class BillService {
   public bills: Map<number, IBillDetailsRes> = new Map();
+  private db = getDb();
   constructor() {
   }
 
@@ -70,17 +73,16 @@ export class BillService {
    * @returns A Promise resolving to an array of Bill objects.
    */
   public async getBillsBySession(parliament: number = 45, session: number = 1) {
-    const db = getDb();
     const parlsession = `${parliament}-${session}`;
     const oneDayAgo = Math.floor((Date.now() - 86400000) / 1000);
-    const cachedSession = await db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on > ?`, [session, parliament, oneDayAgo]);
+    const cachedSession = await this.db.getFirstAsync(`SELECT * FROM cached_session WHERE session = ? AND parliament = ? AND updated_on > ?`, [session, parliament, oneDayAgo]);
     if (!cachedSession) {
       try {
         const bills = await OpenParliamentInstance.get<IBillDetailsRes[]>({
           parlsession
         });
         bills.forEach(async (bill) => {
-          await db.runAsync(insertBillSQL, [
+          await this.db.runAsync(insertBillSQL, [
             bill.BillId,
             bill.BillNumberPrefix,
             bill.BillNumber,
@@ -127,7 +129,7 @@ export class BillService {
             bill.LatestActivityDateTime
           ]);
         })
-        await db.runAsync(`INSERT OR REPLACE INTO cached_session (session, parliament) VALUES (?, ?)`, [session, parliament]);
+        await this.db.runAsync(`INSERT OR REPLACE INTO cached_session (session, parliament) VALUES (?, ?)`, [session, parliament]);
       } catch (e) {
         console.error(e)
       }
@@ -139,8 +141,6 @@ export class BillService {
     session: number = 1,
     titleSearch: string = ''
   ): Promise<IBillData[]> {
-    const db = getDb();
-
     let sql = `
       SELECT b.*, bli.IsLiked, bli.IsDisliked
       FROM bills b
@@ -158,13 +158,31 @@ export class BillService {
       params.push(`%${titleSearch}%`);
     }
 
-    return db.getAllAsync(sql, params);
+    return this.db.getAllAsync(sql, params);
   }
 
+  public async getBillDetailsById(billId: number): Promise<IBillData | null> {
+    return await this.db.getFirstAsync(`
+      SELECT b.*, bli.IsLiked, bli.IsDisliked
+      FROM bills b
+      LEFT JOIN bills_local_info bli
+        ON b.BillId = bli.BillId
+      WHERE b.BillId = ?
+      `, [billId])
+  }
+
+  public async getBillPdfById(billId: number): Promise<IPdfDB | null> {
+    return await this.db.getFirstAsync(`
+      SELECT b.*, bli.IsLiked, bli.IsDisliked
+      FROM bills b
+      LEFT JOIN bills_local_info bli
+        ON b.BillId = bli.BillId
+      WHERE b.BillId = ?
+      `, [billId])
+  }
 
   public async likeBill(billId: number) {
-    const db = getDb();
-    await db.runAsync(
+    await this.db.runAsync(
       `INSERT OR REPLACE INTO bills_local_info (BillId, IsLiked, IsDisliked)
       VALUES (?, 1, 0)`,
       [billId]
@@ -172,8 +190,7 @@ export class BillService {
   }
 
   public async dislikeBill(billId: number) {
-    const db = getDb();
-    await db.runAsync(
+    await this.db.runAsync(
       `INSERT OR REPLACE INTO bills_local_info (BillId, IsLiked, IsDisliked)
       VALUES (?, 0, 1)`,
       [billId]

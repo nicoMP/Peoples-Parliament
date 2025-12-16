@@ -12,7 +12,7 @@ export function getDb() {
 
 export async function initDb() {
     const db = getDb();
-    await db.execAsync(`DROP TABLE bills; DROP TABLE cached_session; DROP TABLE bills_local_info; DROP TABLE bills_pdf`)
+    // await db.execAsync(`DROP TABLE bills; DROP TABLE cached_session; DROP TABLE bills_local_info; DROP TABLE bills_pdf; DROP TABLE vote_records`);
     await db.execAsync(
         `CREATE TABLE IF NOT EXISTS bills (
         SearchScore REAL,
@@ -86,6 +86,26 @@ export async function initDb() {
             version INTEGER,
             FOREIGN KEY (BillId) REFERENCES bills (BillId) ON DELETE CASCADE,
             PRIMARY KEY (BillID, version)
+        )`
+    )
+    await db.execAsync(
+        `CREATE TABLE IF NOT EXISTS vote_records (
+            url TEXT PRIMARY KEY,
+            number INTEGER NOT NULL,
+            bill_url TEXT,
+            BillId INTEGER NOT NULL,
+            session TEXT NOT NULL,
+            date TEXT NOT NULL,
+            result TEXT NOT NULL,
+            yea_total INTEGER NOT NULL,
+            nay_total INTEGER NOT NULL,
+            paired_total INTEGER NOT NULL,
+            context_statement TEXT NOT NULL,
+
+            -- JSON fields
+            description_json TEXT NOT NULL,      -- { en: string, fr: string }
+            party_votes_json TEXT NOT NULL,       -- array of party vote objects
+            FOREIGN KEY (BillId) REFERENCES bills (BillId) ON DELETE CASCADE
         )`
     )
 }

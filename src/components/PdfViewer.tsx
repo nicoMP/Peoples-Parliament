@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 type PdfViewerProps = {
-  pdfUrl: string; // full data URI: data:application/pdf;base64,...
+  pdfUrl: string | undefined; // full data URI: data:application/pdf;base64,...
 };
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl }) => {
@@ -10,7 +10,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl }) => {
   if (!pdfUrl || typeof pdfUrl !== 'string') {
     return null;
   }
-
+  console.log(pdfUrl)
   return (
     <WebView
       originWhitelist={["*"]}

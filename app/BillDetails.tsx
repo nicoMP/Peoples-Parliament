@@ -1,13 +1,19 @@
+import { BillVotesList } from "@/src/components/BillVoteList";
 import { PdfViewer } from "@/src/components/PdfViewer";
 import { BillPdfService, IPdfDB } from "@/src/services/BillPdfService";
 import { BillService, IBillData } from "@/src/services/BillService";
+import {
+  BillVotesServices,
+  IBillVoteRecord,
+} from "@/src/services/BillVotesSevice";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Button, Pressable, Text, View, StyleSheet } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const billService = new BillService();
 const billPdfService = new BillPdfService();
+const billVotesService = new BillVotesServices();
 
 export default function BillDetails() {
   const router = useRouter();
@@ -16,33 +22,61 @@ export default function BillDetails() {
   const [bill, setBill] = useState<IBillData | null>(null);
   const [pdfs, setPdf] = useState<IPdfDB[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activePdf, setactivePdf] = useState<IPdfDB | null>(null)
+  const [activePdf, setActivePdf] = useState<IPdfDB | null>(null);
+  const [votes, setVotes] = useState<IBillVoteRecord[] | null>(null);
 
   useEffect(() => {
     if (!billId) return;
+
     (async () => {
+      setLoading(true);
       try {
         const data = await billService.getBillDetailsById(+billId);
-        if (data) {
-          await billPdfService.setBillPdf(data);
-          const allPdfs = await billPdfService.findBillPdf(+billId);
-          if (allPdfs?.length) {
-            setPdf(allPdfs);
-            setactivePdf(allPdfs[allPdfs.length - 1]);
-          }
+        if (!data) {
+          setBill(null);
+          setPdf(null);
+          setActivePdf(null);
+          setVotes(null);
+          return;
         }
+
         setBill(data);
+
+        // PDFs
+        await billPdfService.setBillPdf(data);
+        const allPdfs = await billPdfService.findBillPdf(+billId);
+        if (allPdfs?.length) {
+          setPdf(allPdfs);
+          setActivePdf(allPdfs[allPdfs.length - 1]); // latest
+        } else {
+          setPdf([]);
+          setActivePdf(null);
+        }
+
+        // Votes
+        await billVotesService.setBillVotes(data.ParlSessionCode, data);
+        const billVotes = await billVotesService.findBillVotes(data.BillId);
+        setVotes(billVotes ?? []);
       } catch (err) {
         console.error("Failed to fetch bill", err);
+        setBill(null);
+        setPdf(null);
+        setActivePdf(null);
+        setVotes(null);
       } finally {
         setLoading(false);
       }
     })();
   }, [billId]);
 
+  const headerTitle = useMemo(() => {
+    if (!bill) return "Bill details";
+    return `Bill ${bill.BillNumberFormatted}`;
+  }, [bill]);
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with back button */}
+      {/* Header */}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -54,70 +88,75 @@ export default function BillDetails() {
           <Text style={styles.backButtonText}>‹ Back</Text>
         </Pressable>
 
-        {bill && (
-          <Text
-            style={styles.headerTitle}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {`Bill ${bill.BillNumberFormatted}` || "Bill details"}
-          </Text>
-        )}
+        <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+          {headerTitle}
+        </Text>
       </View>
 
-      {/* Main content */}
+      {/* Content */}
       <View style={styles.content}>
         {loading ? (
           <Text style={styles.messageText}>Loading…</Text>
         ) : !bill ? (
           <Text style={styles.messageText}>No bill found</Text>
-        ) : !activePdf ? (
-          <Text style={styles.messageText}>PDF not found</Text>
         ) : (
-          <View style={styles.viewerSection}>
-            <View style={styles.pdfWrapper}>
-              {/* Compact version tabs, aligned to top-right */}
-              <View style={styles.tabsRow}>
-                {pdfs?.map((pdf) => {
-                  const isActive = pdf.version === activePdf?.version;
-                  const isLatest = pdf.version === pdfs.length;
+          <View style={styles.body}>
+            {/* PDF Area */}
+            <View style={styles.viewerSection}>
+              <View style={styles.pdfWrapper}>
+                {/* Tabs */}
+                {!!pdfs?.length && (
+                  <View style={styles.tabsRow}>
+                    {pdfs.map((pdf, idx) => {
+                      const isActive = pdf.version === activePdf?.version;
+                      const isLatest = idx === pdfs.length - 1;
 
-                  return (
-                    <Pressable
-                      key={pdf.version}
-                      onPress={() => setactivePdf(pdf)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: isActive }}
-                      accessibilityLabel={
-                        isLatest
-                          ? `Latest version, version ${pdf.version}`
-                          : `Version ${pdf.version}`
-                      }
-                      style={({ pressed }) => [
-                        styles.tab,
-                        isActive && styles.tabActive,
-                        pressed && styles.tabPressed,
-                      ]}
-                      hitSlop={6}
-                    >
-                      <Text
-                        style={[
-                          styles.tabText,
-                          isActive && styles.tabTextActive,
-                        ]}
-                      >
-                        {isLatest ? "Latest" : `V.${pdf.version}`}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                      return (
+                        <Pressable
+                          key={pdf.version}
+                          onPress={() => setActivePdf(pdf)}
+                          accessibilityRole="tab"
+                          accessibilityState={{ selected: isActive }}
+                          accessibilityLabel={
+                            isLatest
+                              ? `Latest version, version ${pdf.version}`
+                              : `Version ${pdf.version}`
+                          }
+                          style={({ pressed }) => [
+                            styles.tab,
+                            isActive && styles.tabActive,
+                            pressed && styles.tabPressed,
+                          ]}
+                          hitSlop={6}
+                        >
+                          <Text
+                            style={[
+                              styles.tabText,
+                              isActive && styles.tabTextActive,
+                            ]}
+                          >
+                            {isLatest ? "Latest" : `V.${pdf.version}`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
 
-              {/* PDF card */}
-              <View style={styles.pdfContainer}>
-                <PdfViewer key={activePdf.version} pdfUrl={activePdf.url} />
+                {/* PDF Card */}
+                <View style={styles.pdfContainer}>
+                  {activePdf ? (
+                    <PdfViewer
+                      key={activePdf.version}
+                      pdfUrl={activePdf.url}
+                    />
+                  ) : (
+                    <Text style={styles.messageText}>PDF not found</Text>
+                  )}
+                </View>
               </View>
             </View>
+            {!!votes?.length && <BillVotesList votes={votes} height={100} />}
           </View>
         )}
       </View>
@@ -138,8 +177,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E2E2E2",
-    marginBottom: 25,
-    textAlign: 'center'
+    marginBottom: 8
   },
 
   backButton: {
@@ -151,7 +189,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#611A1A", // your wine red
+    color: "#611A1A",
   },
 
   headerTitle: {
@@ -165,6 +203,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  body: {
+    flex: 1, // ✅ critical: lets PDF area get real height
+  },
+
   messageText: {
     textAlign: "center",
     marginTop: 24,
@@ -173,12 +215,14 @@ const styles = StyleSheet.create({
   },
 
   viewerSection: {
-    flex: 1,
-    padding: 16,
+    flex: 1, // ✅ critical
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 28, // room for tabs above card
   },
 
   pdfWrapper: {
-    flex: 1,
+    flex: 1, // ✅ critical
     position: "relative",
   },
 
@@ -196,25 +240,23 @@ const styles = StyleSheet.create({
 
   tabsRow: {
     position: "absolute",
-    top: -30,        // just above card, but subtle
-    right: 16,
+    top: -28,
+    right: 12,
     flexDirection: "row",
     alignItems: "flex-end",
+    zIndex: 10,
+    elevation: 10, // android
   },
 
   tab: {
     marginLeft: 6,
-    paddingVertical: 4,        // more compact
+    paddingVertical: 4,
     paddingHorizontal: 10,
-    minHeight: 32,             // still decent tap target with padding + hitSlop
+    minHeight: 28,
     justifyContent: "center",
-
     backgroundColor: "#FFF5F5",
     borderTopLeftRadius: 6,
     borderTopRightRadius: 6,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-
     borderWidth: 1,
     borderColor: "#D88A8A",
     borderBottomWidth: 0,
@@ -231,7 +273,7 @@ const styles = StyleSheet.create({
 
   tabText: {
     color: "#4A1B1B",
-    fontSize: 12,        // compact but still readable
+    fontSize: 12,
     fontWeight: "500",
   },
 

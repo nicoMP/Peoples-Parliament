@@ -54,7 +54,7 @@ export class BillPdfService {
                     `Version ${billVersion} not found, trying next...`,
                     error
                 );
-                break;
+                continue;
             }
         }
     }

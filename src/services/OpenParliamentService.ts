@@ -18,14 +18,15 @@ export class OpenParliamentService {
     private axiosInstance: AxiosInstance;
 
     constructor(
-        endpoint: string = ''
+        endpoint: string = '',
+        overrideUrl: string = ''
     ) {
         // IMPORTANT for React Native:
         // process.env.OPEN_PARLIAMENT_BASE_URL needs to be correctly configured.
         // For local development on a device/emulator, use your machine's IP, not 'localhost'.
         // e.g., 'http://192.168.1.100:3000/api/parliament'
         // If OPEN_PARLIAMENT_BASE_URL is not set, provide a sensible default for testing.
-        const baseApiUrl = process.env.OPEN_PARLIAMENT_BASE_URL || 'https://www.parl.ca'; // A common public API example
+        const baseApiUrl = overrideUrl || process.env.OPEN_PARLIAMENT_BASE_URL || 'https://www.parl.ca'; // A common public API example
 
         this.axiosInstance = axios.create({
             baseURL: baseApiUrl + endpoint, // Combine base URL and specific endpoint

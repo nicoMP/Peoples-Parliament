@@ -444,48 +444,6 @@ export default function BillCard(props: BillCardProps) {
               color={isDisliked ? "#F44336" : "#757575"}
             />
           </Pressable>
-
-          {saved && pdfMissing ? (
-            <Pressable
-              onPress={() => console.log('HI')}
-              style={styles.actionButton}
-              disabled={downloading}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialIcons
-                name={downloading ? "hourglass-top" : "refresh"}
-                size={20}
-                color="#F44336"
-              />
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={() => console.log('HI')}
-              style={styles.actionButton}
-              disabled={downloading}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialIcons
-                name={downloading ? "hourglass-top" : saved ? "check" : "save"}
-                size={20}
-                color={saved ? "#4CAF50" : "#007AFF"}
-              />
-            </Pressable>
-          )}
-
-          {saved && !pdfMissing && (
-            <Pressable
-              // onPress={handleViewPdf} 
-              style={styles.actionButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialIcons
-                name="picture-as-pdf"
-                size={20}
-                color="#007AFF"
-              />
-            </Pressable>
-          )}
         </View>
         <Text style={styles.lastInteractionDate}>
           Last updated: {getLastInteractionDate()}
